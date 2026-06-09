@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+*.log
+price_cache/
+gap_up_report.html
+小澤ファイナンス｜ギャップアップ全銘柄スキャン_files/

@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: ozawa-finance-yahoo-lab
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python gap_up_scanner.py --prototype-api
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.4

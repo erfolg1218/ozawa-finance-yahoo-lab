@@ -1,0 +1,7 @@
+pandas>=2.2,<4
+numpy>=2.0,<3
+yfinance>=0.2.54
+tqdm>=4.65
+requests>=2.31
+xlrd>=2.0
+openpyxl>=3.1

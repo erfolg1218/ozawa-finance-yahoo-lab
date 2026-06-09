@@ -1,0 +1,813 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ギャップアップ戦略 銘柄変更UIプロトタイプ</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0d1117;color:#e6edf3;font-family:'Noto Sans JP','Segoe UI',Arial,sans-serif;font-size:13px;line-height:1.55;-webkit-font-smoothing:antialiased}
+.num{font-family:'JetBrains Mono',monospace;font-feature-settings:"tnum"}
+
+.header{background:linear-gradient(135deg,#161b22 0%,#0d1117 100%);border-bottom:1px solid #30363d;padding:18px 28px;position:relative;overflow:hidden}
+.header::after{content:'';position:absolute;top:0;right:0;bottom:0;width:40%;background:radial-gradient(ellipse at right,rgba(63,185,80,0.08),transparent 70%);pointer-events:none}
+.header h1{font-size:18px;font-weight:700;letter-spacing:.3px}
+.header h1 .accent{color:#3fb950}
+.prototype-badge{display:inline-block;margin-left:10px;padding:3px 8px;border:1px solid rgba(88,166,255,.45);border-radius:12px;background:rgba(88,166,255,.12);color:#58a6ff;font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.8px;vertical-align:middle}
+.header-meta{font-size:11px;color:#8b949e;margin-top:6px;display:flex;gap:18px;flex-wrap:wrap}
+.header-meta span{color:#58a6ff}
+.header-meta b{color:#e6edf3;font-weight:500;margin-right:4px}
+
+/* タブバー */
+.tab-bars{background:#161b22;border-bottom:1px solid #30363d;padding:0 24px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:0}
+.tab-row{display:flex;align-items:center;gap:0}
+.tab-row.left{flex:1}
+.tab-row.right{padding:6px 0}
+.tab-btn{padding:13px 22px;cursor:pointer;font-size:12px;font-weight:600;color:#8b949e;border:none;background:none;border-bottom:3px solid transparent;margin-bottom:-1px;transition:all .15s;letter-spacing:.5px;font-family:inherit}
+.tab-btn:hover{color:#e6edf3}
+.tab-btn.active{color:#3fb950;border-bottom-color:#3fb950}
+.tab-btn .code{font-family:'JetBrains Mono',monospace;font-weight:700}
+
+.period-toggle{display:flex;gap:0;background:#0d1117;border:1px solid #30363d;border-radius:8px;overflow:hidden;font-size:11px}
+.period-btn{padding:8px 16px;cursor:pointer;color:#8b949e;background:transparent;border:none;font-family:inherit;font-weight:600;transition:all .15s;letter-spacing:.4px}
+.period-btn:hover{color:#e6edf3;background:#161b22}
+.period-btn.active{color:#0d1117;background:#3fb950}
+
+.container{padding:18px 24px;max-width:1700px;margin:0 auto}
+.prototype-note{display:flex;justify-content:space-between;gap:20px;align-items:center;margin-bottom:14px;padding:10px 14px;border:1px solid rgba(88,166,255,.35);border-radius:8px;background:linear-gradient(90deg,rgba(88,166,255,.12),rgba(63,185,80,.04));color:#c9d1d9;font-size:11px}
+.prototype-note strong{color:#58a6ff}
+.stock-name{display:block;margin-top:2px;color:#8b949e;font-size:9px;font-weight:500;letter-spacing:0}
+.selector-panel{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:14px 16px;margin-bottom:14px}
+.selector-head{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:11px}
+.selector-title{font-size:12px;font-weight:700;color:#e6edf3;letter-spacing:.4px}
+.selector-status{font-size:10px;color:#8b949e}
+.stock-selector{display:flex;gap:8px;flex-wrap:wrap}
+.stock-choice{position:relative;display:flex;align-items:center;gap:9px;min-width:190px;padding:10px 13px;border:1px solid #30363d;border-radius:7px;background:#0d1117;cursor:pointer;transition:all .15s;user-select:none}
+.stock-choice:hover{border-color:#58a6ff;transform:translateY(-1px)}
+.stock-choice.selected{border-color:#3fb950;background:rgba(63,185,80,.08);box-shadow:inset 0 0 0 1px rgba(63,185,80,.12)}
+.stock-choice input{accent-color:#3fb950;width:15px;height:15px}
+.choice-code{color:#58a6ff;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700}
+.choice-name{color:#c9d1d9;font-size:11px;font-weight:600}
+.choice-kpi{margin-left:auto;color:#8b949e;font-family:'JetBrains Mono',monospace;font-size:9px}
+.selector-actions{display:flex;gap:6px}
+.mini-btn{padding:5px 10px;border:1px solid #30363d;border-radius:5px;background:#0d1117;color:#8b949e;font:600 10px 'Noto Sans JP',sans-serif;cursor:pointer}
+.mini-btn:hover{color:#e6edf3;border-color:#58a6ff}
+.add-stock-form{display:grid;grid-template-columns:minmax(220px,1.2fr) auto minmax(260px,1.5fr) auto;gap:8px;margin-bottom:11px;padding:10px;background:#0d1117;border:1px solid #21262d;border-radius:7px}
+.add-input,.add-select{width:100%;padding:8px 10px;border:1px solid #30363d;border-radius:5px;background:#161b22;color:#e6edf3;font:500 11px 'Noto Sans JP',sans-serif;outline:none}
+.add-input:focus,.add-select:focus{border-color:#58a6ff}
+.add-btn{padding:8px 16px;border:1px solid #238636;border-radius:5px;background:#238636;color:#fff;font:700 11px 'Noto Sans JP',sans-serif;cursor:pointer}
+.add-btn:hover{background:#2ea043}
+.form-message{grid-column:1/-1;min-height:14px;color:#8b949e;font-size:10px}
+.form-message.error{color:#f85149}.form-message.success{color:#3fb950}
+.remove-choice{margin-left:2px;padding:2px 5px;border:0;background:transparent;color:#8b949e;font-size:13px;cursor:pointer}
+.remove-choice:hover{color:#f85149}
+
+/* KPI */
+.kpi-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-bottom:14px}
+.kpi-card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:13px 14px;position:relative;overflow:hidden;transition:border-color .15s}
+.kpi-card:hover{border-color:#484f58}
+.kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--ac,#3fb950)}
+.kpi-label{font-size:10px;color:#8b949e;text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px;font-weight:600}
+.kpi-value{font-size:19px;font-weight:700;line-height:1.15;font-family:'JetBrains Mono',monospace}
+.kpi-sub{font-size:10px;color:#8b949e;margin-top:4px}
+
+.green{color:#3fb950}.red{color:#f85149}.cyan{color:#39d353}.blue{color:#58a6ff}
+.orange{color:#e3b341}.white{color:#e6edf3}.purple{color:#a371f7}.gray{color:#8b949e}
+
+.panel{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:16px;margin-bottom:14px}
+.sec{font-size:10px;font-weight:700;color:#8b949e;text-transform:uppercase;letter-spacing:1px;padding-bottom:10px;border-bottom:1px solid #21262d;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.sec .ic{font-size:13px}
+
+.two-col{display:grid;grid-template-columns:1.6fr 1fr;gap:14px;margin-bottom:14px}
+.two-col-eq{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.three-col{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px}
+
+.chart-wrap{position:relative;height:260px}
+.chart-wrap-sm{position:relative;height:200px}
+
+/* 統計テーブル */
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{background:#0d1117;color:#8b949e;font-weight:600;text-align:right;padding:8px 10px;border-bottom:1px solid #30363d;font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+th:first-child{text-align:left}
+td{padding:7px 10px;border-bottom:1px solid #21262d;text-align:right;font-family:'JetBrains Mono',monospace}
+td:first-child{text-align:left;font-family:inherit}
+tr:hover td{background:rgba(56,139,253,0.04)}
+.tr-total{background:#21262d}
+.tr-total td{font-weight:700;color:#e6edf3;border-top:2px solid #484f58}
+
+/* stat list */
+.stat-list{display:flex;flex-direction:column;gap:0}
+.stat-row{display:flex;justify-content:space-between;align-items:baseline;padding:8px 0;border-bottom:1px solid #21262d;gap:12px}
+.stat-row:last-child{border-bottom:none}
+.stat-label{color:#8b949e;font-size:11px;text-transform:uppercase;letter-spacing:.4px;flex-shrink:0}
+.stat-value{font-weight:600;font-size:13px;text-align:right;font-family:'JetBrains Mono',monospace}
+
+.dd-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}
+.dd-card{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:11px}
+.dd-card-title{font-size:10px;color:#e3b341;font-weight:700;letter-spacing:.6px;margin-bottom:8px;text-transform:uppercase}
+.dd-card .stat-row{padding:5px 0;font-size:11px}
+.dd-card .stat-value{font-size:11px}
+
+/* ランキング */
+.rank-list{display:flex;flex-direction:column;gap:8px}
+.rank-row{display:grid;grid-template-columns:30px 60px 1fr auto;align-items:center;gap:10px;padding:10px 12px;background:#0d1117;border:1px solid #21262d;border-radius:6px;transition:transform .12s}
+.rank-row:hover{transform:translateX(2px);border-color:#3fb950}
+.rank-num{font-family:'JetBrains Mono',monospace;font-weight:700;color:#8b949e;font-size:14px;text-align:center}
+.rank-num.gold{color:#e3b341}.rank-num.silver{color:#c9d1d9}.rank-num.bronze{color:#cf8240}
+.rank-code{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14px;color:#58a6ff}
+.rank-bar{height:8px;background:#21262d;border-radius:4px;overflow:hidden;position:relative}
+.rank-bar-fill{height:100%;background:linear-gradient(90deg,#3fb950,#39d353);border-radius:4px}
+.rank-pf{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14px}
+
+/* 月次マトリクス */
+.matrix-wrap{overflow-x:auto;margin:0 -4px;padding:0 4px}
+.mx{font-size:11px;border-collapse:separate;border-spacing:2px;width:100%;min-width:880px}
+.mx th{background:#0d1117;color:#8b949e;padding:5px 4px;text-align:center;font-size:10px;font-weight:600;border-bottom:none}
+.mx th:first-child{text-align:left;background:transparent}
+.mx td{padding:5px 4px;text-align:center;border-radius:3px;font-family:'JetBrains Mono',monospace;font-size:11px;border-bottom:none;background:#0d1117}
+.mx td:first-child{text-align:left;background:transparent;color:#8b949e;font-family:inherit;font-weight:600}
+.mx td.tot{background:#161b22;font-weight:700;border-left:1px solid #30363d}
+
+/* 値の色 - 強度 */
+.v0{background:#0d1117 !important;color:#484f58}
+.vp1{background:rgba(63,185,80,0.10) !important;color:#3fb950}
+.vp2{background:rgba(63,185,80,0.22) !important;color:#3fb950}
+.vp3{background:rgba(63,185,80,0.40) !important;color:#a8e6b3}
+.vp4{background:rgba(63,185,80,0.65) !important;color:#fff}
+.vn1{background:rgba(248,81,73,0.10) !important;color:#f85149}
+.vn2{background:rgba(248,81,73,0.22) !important;color:#f85149}
+.vn3{background:rgba(248,81,73,0.40) !important;color:#fda6a2}
+.vn4{background:rgba(248,81,73,0.65) !important;color:#fff}
+
+/* badge */
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;letter-spacing:.4px;font-family:'JetBrains Mono',monospace}
+.badge-green{background:rgba(63,185,80,.15);color:#3fb950;border:1px solid rgba(63,185,80,.3)}
+.badge-red{background:rgba(248,81,73,.15);color:#f85149;border:1px solid rgba(248,81,73,.3)}
+.badge-blue{background:rgba(88,166,255,.15);color:#58a6ff;border:1px solid rgba(88,166,255,.3)}
+.badge-orange{background:rgba(227,179,65,.15);color:#e3b341;border:1px solid rgba(227,179,65,.3)}
+
+/* 注釈 */
+.note{font-size:10px;color:#8b949e;margin-top:8px;padding:8px 10px;background:#0d1117;border-left:2px solid #58a6ff;border-radius:4px}
+
+.tab-content{display:none}.tab-content.active{display:block}
+
+@media (max-width:1300px){
+  .kpi-grid{grid-template-columns:repeat(4,1fr)}
+  .two-col,.two-col-eq,.three-col{grid-template-columns:1fr}
+  .prototype-note,.selector-head{align-items:flex-start;flex-direction:column}
+  .add-stock-form{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>📊 ギャップアップ戦略 <span class="accent">パフォーマンス評価レポート</span><span class="prototype-badge">UI PROTOTYPE</span></h1>
+  <div class="header-meta">
+    <span><b>戦略:</b> ギャップアップトレード(反転検知)</span>
+    <span><b>期間:</b> 2009/02 〜 2026/04</span>
+    <span><b>対象:</b> <span id="header-target">TSE 7203 / 6758 / 8035</span></span>
+    <span><b>運用条件:</b> 各銘柄 実証拠金¥45.5万 × レバ3.3倍 = ポジション¥150万</span>
+  </div>
+</div>
+
+<div class="tab-bars">
+  <div class="tab-row left" id="stock-tabs"></div>
+  <div class="tab-row right">
+    <div class="period-toggle">
+      <button class="period-btn active" data-period="all" onclick="switchPeriod('all',this)">全期間 (2009〜)</button>
+      <button class="period-btn" data-period="since2015" onclick="switchPeriod('since2015',this)">2015年以降</button>
+    </div>
+  </div>
+</div>
+
+<div class="container" id="dashboard">
+  <div class="prototype-note">
+    <span><strong>Yahoo Finance検証モード:</strong> 初期3銘柄を含む表示銘柄は、Yahoo Financeの日足始値・終値から再計算されています。</span>
+    <span class="num" id="selection-summary">7203 + 6758 + 8035</span>
+  </div>
+  <div class="selector-panel">
+    <div class="selector-head">
+      <div>
+        <div class="selector-title">分析する銘柄を選択</div>
+        <div class="selector-status" id="selector-status">3銘柄を選択中。チェックを外すとポートフォリオを即時再集計します。</div>
+      </div>
+      <div class="selector-actions">
+        <button class="mini-btn" onclick="selectAllStocks()">すべて選択</button>
+        <button class="mini-btn" onclick="selectTopPF()">PF上位2銘柄</button>
+      </div>
+    </div>
+    <div class="add-stock-form">
+      <input class="add-input" id="stock-search-query" placeholder="銘柄名または証券コード 例: ソフトバンク" onkeydown="if(event.key==='Enter') searchYahooStocks()">
+      <button class="mini-btn" onclick="searchYahooStocks()">銘柄を検索</button>
+      <select class="add-select" id="stock-search-results" onchange="selectSearchResult()">
+        <option value="">検索結果から銘柄を選択</option>
+      </select>
+      <button class="add-btn" onclick="addYahooStock()">Yahoo実データを追加</button>
+      <div class="form-message" id="add-stock-message">ローカルAPI接続後、銘柄名から証券コードを検索し、Yahoo Finance実データを読み込みます。</div>
+    </div>
+    <div class="stock-selector" id="stock-selector"></div>
+  </div>
+  <!-- KPI -->
+  <div class="kpi-grid" id="kpi-area"></div>
+
+  <!-- チャート + 詳細統計 -->
+  <div class="two-col">
+    <div class="panel">
+      <div class="sec"><span class="ic">📈</span>パフォーマンスチャート(月次累積)</div>
+      <div class="chart-wrap"><canvas id="perfChart"></canvas></div>
+    </div>
+    <div class="panel">
+      <div class="sec"><span class="ic">🔢</span>詳細統計</div>
+      <div id="detail-stats" class="stat-list"></div>
+    </div>
+  </div>
+
+  <!-- 年次 + DD詳細 + ランキング -->
+  <div class="two-col">
+    <div class="panel">
+      <div class="sec"><span class="ic">📅</span>年次損益サマリー(実証拠金ベース)</div>
+      <div style="max-height:380px;overflow-y:auto"><table id="yearly-table"></table></div>
+    </div>
+    <div class="panel">
+      <div class="sec"><span class="ic">📉</span>ドローダウン詳細</div>
+      <div id="dd-area"></div>
+      <div style="margin-top:14px" id="rank-section">
+        <div class="sec" style="margin-top:8px"><span class="ic">🏆</span>銘柄別 PFランキング</div>
+        <div id="rank-list" class="rank-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 月次マトリクス -->
+  <div class="panel">
+    <div class="sec"><span class="ic">📆</span>月次損益マトリクス(実証拠金比%)</div>
+    <div class="matrix-wrap"><table class="mx" id="matrix-table"></table></div>
+    <div class="note">※ 表示値は実証拠金 ¥<span class="num" id="margin-display"></span> ベースの月次収益率(%)。CSV損益(¥150万ポジション計算済)/ 証拠金で算出。</div>
+  </div>
+
+</div>
+
+<script>
+const DATA = {"periods":{"since2015":{"per_stock":{"8035":{"monthly_matrix":{"2015":{"1":-17.266299954927884,"2":39.4783268050309,"3":-10.539842623197115,"4":-52.05535494290865,"5":17.932634733430632,"6":-8.639486499828298,"7":-27.44746034726992,"8":-33.258612530048076,"9":-24.703890716217376,"10":40.93110694969093,"11":-5.6784936255151095,"12":4.895217902214973},"2016":{"1":11.41487031035371,"2":7.294713523780906,"3":30.265877457503432,"4":18.207931350875686,"5":57.12949288504464,"6":-2.9230770303914833,"7":14.02205813229739,"8":41.08022804344094,"9":-5.776065097012363,"10":14.787252532623626,"11":51.0867472420158,"12":14.356092784168956},"2017":{"1":10.704754678914835,"2":5.854607496995192,"3":1.288299600789835,"4":23.41067452566964,"5":32.19563573145604,"6":-10.685682520604397,"7":-0.2806200635302198,"8":3.912076429429945,"9":26.578685182005497,"10":31.634372317135988,"11":-0.6805601820054945,"12":3.5908491801167584},"2018":{"1":16.35242402129121,"2":20.037412967891484,"3":-25.49228451236264,"4":9.077003133585166,"5":18.94030026614011,"6":1.3680895861950548,"7":-9.114678163633242,"8":-13.556410327953298,"9":-32.40074025583791,"10":-29.736756632039835,"11":-29.21753069196428,"12":-35.99605119977679},"2019":{"1":22.199129947201236,"2":15.659381760817306,"3":13.944665285885987,"4":33.913641826923076,"5":-22.84762663118132,"6":-8.400731348729396,"7":27.68537828382555,"8":-25.644321342719778,"9":10.671043848729395,"10":20.209127103365386,"11":4.474761332417582,"12":24.723387276785715},"2020":{"1":12.202582739526099,"2":-22.36970724587912,"3":17.31060106885302,"4":41.151673033997255,"5":6.363391247424451,"6":35.71059774210165,"7":19.46053721668956,"8":5.906234975961539,"9":7.594141483516484,"10":-4.225798420329671,"11":30.92894574175824,"12":-4.816927369505494},"2021":{"1":10.420502661401098,"2":2.817549579326923,"3":34.802834392170325,"4":9.573658567994507,"5":1.4124864783653845,"6":6.636529876373626,"7":-15.709889466002746,"8":10.370674579326923,"9":0.45852764423076925,"10":21.94217784168956,"11":27.897461796016483,"12":25.520169127747256},"2022":{"1":-30.717916380494504,"2":-3.0892642513736264,"3":16.863792496565935,"4":-37.00081387362638,"5":21.618347785027474,"6":-52.29161873282967,"7":27.63512899210165,"8":-36.542097570398354,"9":-36.985966045673074,"10":3.5721529447115383,"11":25.75166659512363,"12":-28.463758370535714},"2023":{"1":24.682805846497253,"2":30.52237851991758,"3":17.337761632898353,"4":-1.0153846153846153,"5":66.77582417582417,"6":-12.919780219780218,"7":6.251648351648352,"8":10.951648351648352,"9":-31.1010989010989,"10":-24.42197802197802,"11":60.14835164835165,"12":28.690109890109888},"2024":{"1":44.35164835164835,"2":59.77692307692307,"3":5.241758241758242,"4":-0.27252747252747256,"5":21.085714285714285,"6":18.536263736263734,"7":-48.42197802197802,"8":2.8637362637362638,"9":38.01428571428571,"10":-9.462637362637363,"11":9.35934065934066,"12":22.97032967032967},"2025":{"1":28.83846153846154,"2":-34.8,"3":-21.174725274725276,"4":9.64065934065934,"5":50.325274725274724,"6":52.70769230769231,"7":-8.319780219780219,"8":-108.51868131868132,"9":25.160439560439563,"10":50.06813186813187,"11":19.58681318681319,"12":20.852747252747253},"2026":{"1":42.22857142857143,"2":3.0703296703296705,"3":-63.30549450549451,"4":64.3978021978022,"5":0.0,"6":0.0,"7":0.0,"8":0.0,"9":0.0,"10":0.0,"11":0.0,"12":0.0}},"yearly":[{"year":2015,"n":243,"pnl":-347402.3,"pnl_pct":-76.35215484954499,"win_rate":48.559670781893004,"pf":0.8498277081288446},{"year":2016,"n":245,"pnl":1141804.86,"pnl_pct":250.94612213470123,"win_rate":55.10204081632652,"pf":1.734852747503763},{"year":2017,"n":253,"pnl":580230.07,"pnl_pct":127.52309237637363,"win_rate":53.359683794466406,"pf":1.3814971638588573},{"year":2018,"n":261,"pnl":-499313.46,"pnl_pct":-109.73922180846498,"win_rate":45.21072796934866,"pf":0.815310687851685},{"year":2019,"n":241,"pnl":530474.66,"pnl_pct":116.58783734332074,"win_rate":55.18672199170125,"pf":1.2794753022229104},{"year":2020,"n":242,"pnl":660734.04,"pnl_pct":145.216272214114,"win_rate":55.371900826446286,"pf":1.324349185841468},{"year":2021,"n":245,"pnl":619449.21,"pnl_pct":136.1426830786401,"win_rate":53.06122448979592,"pf":1.3060896833474531},{"year":2022,"n":244,"pnl":-589909.08,"pnl_pct":-129.6503464114011,"win_rate":43.85245901639344,"pf":0.807781425122626},{"year":2023,"n":246,"pnl":800355.4,"pnl_pct":175.90228665865385,"win_rate":50.81300813008131,"pf":1.4066984501167452},{"year":2024,"n":245,"pnl":746395.0,"pnl_pct":164.04285714285714,"win_rate":52.244897959183675,"pf":1.2475790067252117},{"year":2025,"n":243,"pnl":383870.0,"pnl_pct":84.36703296703297,"win_rate":56.37860082304527,"pf":1.1269241387975486},{"year":2026,"n":79,"pnl":211080.0,"pnl_pct":46.3912087912088,"win_rate":54.43037974683544,"pf":1.1949318458867422}],"metrics":{"label":"8035","n_trades":2787,"n_wins":1443,"n_losses":1255,"win_rate":51.77610333692142,"avg_win":21099.961537192616,"avg_loss":-20884.044702245705,"biggest_win":240800.0,"biggest_loss":-270000.0,"total_pnl":4237768.396850586,"pf":1.1616884053869898,"rf":5.054926855340513,"expectancy":1520.5484021710033,"cagr":22.90838607066863,"annual_return":82.32954836280099,"total_return_pct":931.3776696374914,"sharpe":0.6396304540910249,"years":11.312799452429843,"start":"2015-01-06","end":"2026-04-30","final_equity":4692768.396850586,"initial_margin":455000.0,"max_dd_peak_pct":-40.5657270965053,"max_dd_peak_jpy":-838344.1577148438,"max_dd_peak_date":"2018-12-25","peak_peak_date":"2018-03-12","peak_peak_value":2066631.6561279297,"recovery_peak_date":null,"recovery_peak_days":null,"max_dd_init_pct":-184.25146323403158,"max_dd_init_jpy":-838344.1577148438,"max_dd_init_date":"2018-12-25","max_dd_jpy":-838344.1577148438,"max_dd_jpy_pct_peak":-40.5657270965053,"max_dd_jpy_pct_init":-184.25146323403158,"max_dd_jpy_date":"2018-12-25","peak_jpy_date":"2018-03-12","peak_jpy_value":2066631.6561279297,"recovery_jpy_date":null,"recovery_jpy_days":null,"min_equity":-86381.63745117188,"min_equity_date":"2015-10-02","min_equity_loss_jpy":-541381.6374511719,"min_equity_loss_pct":-118.9849752639938,"max_win_streak":12,"max_loss_streak":10},"equity_curve":[{"date":"2015-01","equity":376438.34},{"date":"2015-02","equity":556064.72},{"date":"2015-03","equity":508108.44},{"date":"2015-04","equity":271256.57},{"date":"2015-05","equity":352850.06},{"date":"2015-06","equity":313540.4},{"date":"2015-07","equity":188654.45},{"date":"2015-08","equity":37327.77},{"date":"2015-09","equity":-75074.94},{"date":"2015-10","equity":111161.6},{"date":"2015-11","equity":85324.45},{"date":"2015-12","equity":107597.7},{"date":"2016-01","equity":159535.36},{"date":"2016-02","equity":192726.3},{"date":"2016-03","equity":330436.04},{"date":"2016-04","equity":413282.13},{"date":"2016-05","equity":673221.32},{"date":"2016-06","equity":659921.32},{"date":"2016-07","equity":723721.69},{"date":"2016-08","equity":910636.73},{"date":"2016-09","equity":884355.63},{"date":"2016-10","equity":951637.63},{"date":"2016-11","equity":1184082.33},{"date":"2016-12","equity":1249402.55},{"date":"2017-01","equity":1298109.18},{"date":"2017-02","equity":1324747.65},{"date":"2017-03","equity":1330609.41},{"date":"2017-04","equity":1437127.98},{"date":"2017-05","equity":1583618.12},{"date":"2017-06","equity":1534998.27},{"date":"2017-07","equity":1533721.45},{"date":"2017-08","equity":1551521.39},{"date":"2017-09","equity":1672454.41},{"date":"2017-10","equity":1816390.81},{"date":"2017-11","equity":1813294.26},{"date":"2017-12","equity":1829632.62},{"date":"2018-01","equity":1904036.15},{"date":"2018-02","equity":1995206.38},{"date":"2018-03","equity":1879216.49},{"date":"2018-04","equity":1920516.85},{"date":"2018-05","equity":2006695.22},{"date":"2018-06","equity":2012920.02},{"date":"2018-07","equity":1971448.24},{"date":"2018-08","equity":1909766.57},{"date":"2018-09","equity":1762343.2},{"date":"2018-10","equity":1627040.96},{"date":"2018-11","equity":1494101.2},{"date":"2018-12","equity":1330319.16},{"date":"2019-01","equity":1431325.2},{"date":"2019-02","equity":1502575.39},{"date":"2019-03","equity":1566023.62},{"date":"2019-04","equity":1720330.69},{"date":"2019-05","equity":1616373.99},{"date":"2019-06","equity":1578150.66},{"date":"2019-07","equity":1704119.13},{"date":"2019-08","equity":1587437.47},{"date":"2019-09","equity":1635990.72},{"date":"2019-10","equity":1727942.25},{"date":"2019-11","equity":1748302.41},{"date":"2019-12","equity":1860793.82},{"date":"2020-01","equity":1916315.57},{"date":"2020-02","equity":1814533.41},{"date":"2020-03","equity":1893296.64},{"date":"2020-04","equity":2080536.75},{"date":"2020-05","equity":2109490.18},{"date":"2020-06","equity":2271973.4},{"date":"2020-07","equity":2360518.85},{"date":"2020-08","equity":2387392.22},{"date":"2020-09","equity":2421945.56},{"date":"2020-10","equity":2402718.18},{"date":"2020-11","equity":2543444.88},{"date":"2020-12","equity":2521527.86},{"date":"2021-01","equity":2568941.15},{"date":"2021-02","equity":2581761.0},{"date":"2021-03","equity":2740113.89},{"date":"2021-04","equity":2783674.04},{"date":"2021-05","equity":2790100.85},{"date":"2021-06","equity":2820297.07},{"date":"2021-07","equity":2748817.07},{"date":"2021-08","equity":2796003.64},{"date":"2021-09","equity":2798089.94},{"date":"2021-10","equity":2897926.85},{"date":"2021-11","equity":3024860.3},{"date":"2021-12","equity":3140977.07},{"date":"2022-01","equity":3001210.55},{"date":"2022-02","equity":2987154.4},{"date":"2022-03","equity":3063884.65},{"date":"2022-04","equity":2895530.95},{"date":"2022-05","equity":2993894.43},{"date":"2022-06","equity":2755967.57},{"date":"2022-07","equity":2881707.4},{"date":"2022-08","equity":2715440.86},{"date":"2022-09","equity":2547154.71},{"date":"2022-10","equity":2563408.01},{"date":"2022-11","equity":2680578.09},{"date":"2022-12","equity":2551067.99},{"date":"2023-01","equity":2663374.76},{"date":"2023-02","equity":2802251.58},{"date":"2023-03","equity":2881138.4},{"date":"2023-04","equity":2876518.4},{"date":"2023-05","equity":3180348.4},{"date":"2023-06","equity":3121563.4},{"date":"2023-07","equity":3150008.4},{"date":"2023-08","equity":3199838.4},{"date":"2023-09","equity":3058328.4},{"date":"2023-10","equity":2947208.4},{"date":"2023-11","equity":3220883.4},{"date":"2023-12","equity":3351423.4},{"date":"2024-01","equity":3553223.4},{"date":"2024-02","equity":3825208.4},{"date":"2024-03","equity":3849058.4},{"date":"2024-04","equity":3847818.4},{"date":"2024-05","equity":3943758.4},{"date":"2024-06","equity":4028098.4},{"date":"2024-07","equity":3807778.4},{"date":"2024-08","equity":3820808.4},{"date":"2024-09","equity":3993773.4},{"date":"2024-10","equity":3950718.4},{"date":"2024-11","equity":3993303.4},{"date":"2024-12","equity":4097818.4},{"date":"2025-01","equity":4229033.4},{"date":"2025-02","equity":4070693.4},{"date":"2025-03","equity":3974348.4},{"date":"2025-04","equity":4018213.4},{"date":"2025-05","equity":4247193.4},{"date":"2025-06","equity":4487013.4},{"date":"2025-07","equity":4449158.4},{"date":"2025-08","equity":3955398.4},{"date":"2025-09","equity":4069878.4},{"date":"2025-10","equity":4297688.4},{"date":"2025-11","equity":4386808.4},{"date":"2025-12","equity":4481688.4},{"date":"2026-01","equity":4673828.4},{"date":"2026-02","equity":4687798.4},{"date":"2026-03","equity":4399758.4},{"date":"2026-04","equity":4692768.4}]},"7203":{"monthly_matrix":{"2015":{"1":-13.335817280863669,"2":16.58479266826923,"3":1.6575038633241759,"4":-11.047066019917583,"5":6.021186738066621,"6":-14.71055199927026,"7":0.8208705625429259,"8":-31.580152950077267,"9":-16.425997971754807,"10":10.172221894316621,"11":-3.60062022450206,"12":-6.147377688229739},"2016":{"1":-6.972274558937157,"2":-50.82392763242617,"3":0.7539000257554945,"4":-3.7376019488324177,"5":-7.7563879528674455,"6":-22.2955468079284,"7":16.26920471862122,"8":6.260920893071773,"9":-35.65682348901099,"10":10.961531593406594,"11":46.612640608902815,"12":18.99536347441621},"2017":{"1":-9.676762534340659,"2":-0.42784963083791205,"3":-14.405870589371567,"4":-0.7268366082160027,"5":-3.4111794675051508,"6":-1.97634516118647,"7":-0.8076220971411401,"8":0.6133202588427198,"9":16.490166820484202,"10":13.128334129249655,"11":16.33965570806147,"12":2.463272986778846},"2018":{"1":-4.30309562263908,"2":2.5465933261074865,"3":-9.918241758241757,"4":14.896158246050826,"5":-1.475670662345467,"6":8.949073365599244,"7":13.906906469994848,"8":21.195782323145604,"9":6.335567667196084,"10":-6.921022251674107,"11":6.3406956129807694,"12":-7.110941953554257},"2019":{"1":1.2164798141311814,"2":0.4667186426854396,"3":2.7606514262105084,"4":16.156523035070396,"5":-17.254252017513735,"6":7.945709483387706,"7":-1.7586907355339971,"8":-26.19034928206559,"9":1.049335213126717,"10":3.7364396516569363,"11":5.559444056919642,"12":9.369566958919986},"2020":{"1":-5.696317474029876,"2":-29.37044200184581,"3":-55.55439131181319,"4":-22.461075238238323,"5":8.02926025390625,"6":0.23870804000686816,"7":-7.394909775283311,"8":20.320176586109202,"9":-9.289625820956388,"10":-7.171542834606799,"11":37.57252154339801,"12":28.819918736049104},"2021":{"1":-13.688677240728023,"2":38.74613600510817,"3":34.525502044342375,"4":20.67525181361607,"5":22.026329654232484,"6":8.935509288075206,"7":4.792278744205014,"8":17.032479395604398,"9":-3.159700672862294,"10":10.46043956043956,"11":32.04923076923077,"12":17.910989010989013},"2022":{"1":6.068351648351649,"2":-24.091868131868132,"3":8.175604395604395,"4":-29.787142857142857,"5":1.1781318681318682,"6":-3.8915384615384614,"7":14.078351648351648,"8":-22.402967032967034,"9":-30.614835164835164,"10":16.152307692307694,"11":2.185824175824176,"12":-12.53923076923077},"2023":{"1":-10.146813186813187,"2":6.567802197802197,"3":-15.561318681318681,"4":5.4302197802197805,"5":33.79032967032967,"6":71.12736263736264,"7":0.11197802197802198,"8":4.283626373626373,"9":1.6452747252747253,"10":-5.186923076923077,"11":54.59538461538461,"12":-23.048681318681318},"2024":{"1":31.714945054945055,"2":36.33714285714286,"3":3.1182417582417585,"4":13.734505494505495,"5":-10.891868131868133,"6":2.571648351648352,"7":-10.856263736263736,"8":13.532967032967033,"9":-19.560439560439562,"10":24.336153846153845,"11":21.600109890109888,"12":21.842417582417582},"2025":{"1":2.423956043956044,"2":-25.99252747252747,"3":-28.033626373626376,"4":22.21967032967033,"5":31.955714285714286,"6":0.6123076923076923,"7":30.513516483516483,"8":22.99186813186813,"9":11.170769230769231,"10":39.18153846153846,"11":24.807472527472527,"12":32.51736263736264},"2026":{"1":-2.848131868131868,"2":55.111648351648356,"3":-49.403296703296704,"4":40.89670329670329,"5":0.0,"6":0.0,"7":0.0,"8":0.0,"9":0.0,"10":0.0,"11":0.0,"12":0.0}},"yearly":[{"year":2015,"n":243,"pnl":-280239.09,"pnl_pct":-61.59100840809582,"win_rate":48.971193415637856,"pf":0.813312346432612},{"year":2016,"n":245,"pnl":-124619.95,"pnl_pct":-27.389001075828467,"win_rate":46.53061224489796,"pf":0.9422734023492738},{"year":2017,"n":253,"pnl":80090.39,"pnl_pct":17.602283814817994,"win_rate":48.616600790513836,"pf":1.07634058661356},{"year":2018,"n":261,"pnl":202210.21,"pnl_pct":44.441804762620194,"win_rate":51.724137931034484,"pf":1.170695321603361},{"year":2019,"n":241,"pnl":13911.97,"pnl_pct":3.0575762469951924,"win_rate":57.676348547717836,"pf":1.0147997828473498},{"year":2020,"n":242,"pnl":-190907.62,"pnl_pct":-41.95771929730426,"win_rate":47.107438016528924,"pf":0.8915260361924889},{"year":2021,"n":245,"pnl":865891.25,"pnl_pct":190.30576837225274,"win_rate":58.77551020408164,"pf":1.9205224208388558},{"year":2022,"n":244,"pnl":-343475.0,"pnl_pct":-75.48901098901098,"win_rate":45.49180327868852,"pf":0.8194009089501382},{"year":2023,"n":246,"pnl":562417.5,"pnl_pct":123.60824175824176,"win_rate":57.3170731707317,"pf":1.467128631212009},{"year":2024,"n":245,"pnl":580032.0,"pnl_pct":127.47956043956043,"win_rate":56.734693877551024,"pf":1.3384292323710707},{"year":2025,"n":243,"pnl":747874.5,"pnl_pct":164.36802197802197,"win_rate":54.73251028806584,"pf":1.468491186440041},{"year":2026,"n":79,"pnl":199094.0,"pnl_pct":43.75692307692308,"win_rate":51.89873417721519,"pf":1.244263439494822}],"metrics":{"label":"7203","n_trades":2787,"n_wins":1453,"n_losses":1230,"win_rate":52.13491209185504,"avg_win":13129.876995341334,"avg_loss":-13630.43180417937,"biggest_win":201600.0,"biggest_loss":-101345.56811523438,"total_pnl":2312280.155090332,"pf":1.1379195165730314,"rf":2.8525275407202093,"expectancy":829.6663635056807,"cagr":17.302082360921855,"annual_return":44.92198794967946,"total_return_pct":508.1934406791938,"sharpe":0.4696200287759277,"years":11.312799452429843,"start":"2015-01-06","end":"2026-04-30","final_equity":2767280.155090332,"initial_margin":455000.0,"max_dd_peak_pct":-165.0026712916784,"max_dd_peak_jpy":-810607.4777832031,"max_dd_peak_date":"2016-06-28","peak_peak_date":"2015-03-03","peak_peak_value":491269.3057861328,"recovery_peak_date":null,"recovery_peak_days":null,"max_dd_init_pct":-178.15548962268198,"max_dd_init_jpy":-810607.4777832031,"max_dd_init_date":"2016-06-28","max_dd_jpy":-810607.4777832031,"max_dd_jpy_pct_peak":-165.0026712916784,"max_dd_jpy_pct_init":-178.15548962268198,"max_dd_jpy_date":"2016-06-28","peak_jpy_date":"2015-03-03","peak_jpy_value":491269.3057861328,"recovery_jpy_date":null,"recovery_jpy_days":null,"min_equity":-319338.1719970703,"min_equity_date":"2016-06-28","min_equity_loss_jpy":-774338.1719970703,"min_equity_loss_pct":-170.18421362572974,"max_win_streak":13,"max_loss_streak":10},"equity_curve":[{"date":"2015-01","equity":394322.03},{"date":"2015-02","equity":469782.84},{"date":"2015-03","equity":477324.48},{"date":"2015-04","equity":427060.33},{"date":"2015-05","equity":454456.73},{"date":"2015-06","equity":387523.72},{"date":"2015-07","equity":391258.68},{"date":"2015-08","equity":247568.98},{"date":"2015-09","equity":172830.69},{"date":"2015-10","equity":219114.3},{"date":"2015-11","equity":202731.48},{"date":"2015-12","equity":174760.91},{"date":"2016-01","equity":143037.06},{"date":"2016-02","equity":-88211.81},{"date":"2016-03","equity":-84781.56},{"date":"2016-04","equity":-101787.65},{"date":"2016-05","equity":-137079.22},{"date":"2016-06","equity":-238523.96},{"date":"2016-07","equity":-164499.07},{"date":"2016-08","equity":-136011.88},{"date":"2016-09","equity":-298250.43},{"date":"2016-10","equity":-248375.46},{"date":"2016-11","equity":-36287.95},{"date":"2016-12","equity":50140.96},{"date":"2017-01","equity":6111.69},{"date":"2017-02","equity":4164.97},{"date":"2017-03","equity":-61381.74},{"date":"2017-04","equity":-64688.85},{"date":"2017-05","equity":-80209.71},{"date":"2017-06","equity":-89202.08},{"date":"2017-07","equity":-92876.76},{"date":"2017-08","equity":-90086.16},{"date":"2017-09","equity":-15055.9},{"date":"2017-10","equity":44678.02},{"date":"2017-11","equity":119023.46},{"date":"2017-12","equity":130231.35},{"date":"2018-01","equity":110652.26},{"date":"2018-02","equity":122239.26},{"date":"2018-03","equity":77111.26},{"date":"2018-04","equity":144888.78},{"date":"2018-05","equity":138174.48},{"date":"2018-06","equity":178892.77},{"date":"2018-07","equity":242169.19},{"date":"2018-08","equity":338610.0},{"date":"2018-09","equity":367436.83},{"date":"2018-10","equity":335946.18},{"date":"2018-11","equity":364796.35},{"date":"2018-12","equity":332441.56},{"date":"2019-01","equity":337976.54},{"date":"2019-02","equity":340100.11},{"date":"2019-03","equity":352661.08},{"date":"2019-04","equity":426173.26},{"date":"2019-05","equity":347666.41},{"date":"2019-06","equity":383819.39},{"date":"2019-07","equity":375817.35},{"date":"2019-08","equity":256651.26},{"date":"2019-09","equity":261425.73},{"date":"2019-10","equity":278426.53},{"date":"2019-11","equity":303722.0},{"date":"2019-12","equity":346353.53},{"date":"2020-01","equity":320435.29},{"date":"2020-02","equity":186799.78},{"date":"2020-03","equity":-65972.7},{"date":"2020-04","equity":-168170.6},{"date":"2020-05","equity":-131637.46},{"date":"2020-06","equity":-130551.34},{"date":"2020-07","equity":-164198.18},{"date":"2020-08","equity":-71741.38},{"date":"2020-09","equity":-114009.17},{"date":"2020-10","equity":-146639.69},{"date":"2020-11","equity":24315.28},{"date":"2020-12","equity":155445.91},{"date":"2021-01","equity":93162.43},{"date":"2021-02","equity":269457.35},{"date":"2021-03","equity":426548.38},{"date":"2021-04","equity":520620.78},{"date":"2021-05","equity":620840.58},{"date":"2021-06","equity":661497.14},{"date":"2021-07","equity":683302.01},{"date":"2021-08","equity":760799.79},{"date":"2021-09","equity":746423.16},{"date":"2021-10","equity":794018.16},{"date":"2021-11","equity":939842.16},{"date":"2021-12","equity":1021337.16},{"date":"2022-01","equity":1048948.16},{"date":"2022-02","equity":939330.16},{"date":"2022-03","equity":976529.16},{"date":"2022-04","equity":840997.66},{"date":"2022-05","equity":846358.16},{"date":"2022-06","equity":828651.66},{"date":"2022-07","equity":892708.16},{"date":"2022-08","equity":790774.66},{"date":"2022-09","equity":651477.16},{"date":"2022-10","equity":724970.16},{"date":"2022-11","equity":734915.66},{"date":"2022-12","equity":677862.16},{"date":"2023-01","equity":631694.16},{"date":"2023-02","equity":661577.66},{"date":"2023-03","equity":590773.66},{"date":"2023-04","equity":615481.16},{"date":"2023-05","equity":769227.16},{"date":"2023-06","equity":1092856.66},{"date":"2023-07","equity":1093366.16},{"date":"2023-08","equity":1112856.66},{"date":"2023-09","equity":1120342.66},{"date":"2023-10","equity":1096742.16},{"date":"2023-11","equity":1345151.16},{"date":"2023-12","equity":1240279.66},{"date":"2024-01","equity":1384582.66},{"date":"2024-02","equity":1549916.66},{"date":"2024-03","equity":1564104.66},{"date":"2024-04","equity":1626596.66},{"date":"2024-05","equity":1577038.66},{"date":"2024-06","equity":1588739.66},{"date":"2024-07","equity":1539343.66},{"date":"2024-08","equity":1600918.66},{"date":"2024-09","equity":1511918.66},{"date":"2024-10","equity":1622648.16},{"date":"2024-11","equity":1720928.66},{"date":"2024-12","equity":1820311.66},{"date":"2025-01","equity":1831340.66},{"date":"2025-02","equity":1713074.66},{"date":"2025-03","equity":1585521.66},{"date":"2025-04","equity":1686621.16},{"date":"2025-05","equity":1832019.66},{"date":"2025-06","equity":1834805.66},{"date":"2025-07","equity":1973642.16},{"date":"2025-08","equity":2078255.16},{"date":"2025-09","equity":2129082.16},{"date":"2025-10","equity":2307358.16},{"date":"2025-11","equity":2420232.16},{"date":"2025-12","equity":2568186.16},{"date":"2026-01","equity":2555227.16},{"date":"2026-02","equity":2805985.16},{"date":"2026-03","equity":2581200.16},{"date":"2026-04","equity":2767280.16}]},"6758":{"monthly_matrix":{"2015":{"1":-25.806624360136933,"2":73.19166786948404,"3":-10.493951348944025,"4":24.03408969082675,"5":0.9922207406850961,"6":-9.070110198639252,"7":-1.3661895684881524,"8":-0.43364181350875686,"9":-9.431717381739354,"10":31.386753640646464,"11":7.0904240534855765,"12":-14.442320932241588},"2016":{"1":-35.487496331183465,"2":15.73025118985019,"3":17.802952961345294,"4":-39.150443249377574,"5":9.697218943166208,"6":18.692257978837567,"7":39.161558623261506,"8":18.764424847613324,"9":-14.848035902086195,"10":19.45625273652129,"11":11.685004319411057,"12":15.070254523308723},"2017":{"1":7.900426937564389,"2":22.125463330614696,"3":6.879462313809237,"4":0.8619822474888393,"5":19.778497596153848,"6":6.341517119355254,"7":6.108853115878262,"8":-7.816849378648695,"9":4.491166603172219,"10":19.21280111124227,"11":53.08649230286315,"12":-3.2484032532408995},"2018":{"1":5.618834215101305,"2":17.198969471690422,"3":-21.696387550437844,"4":16.316976304945054,"5":-15.801934103494162,"6":16.278414320054946,"7":23.284799348600618,"8":34.199676875858515,"9":26.53496300330529,"10":-21.97527595939217,"11":-19.725180476262018,"12":-9.195907505580356},"2019":{"1":20.066462053571428,"2":-4.378437889015282,"3":-30.39617415543441,"4":37.14153919932606,"5":-8.810152037903503,"6":15.918548744956215,"7":29.11984144273695,"8":-19.33656019273695,"9":1.2108081591260302,"10":27.099107303828983,"11":13.462855130709134,"12":12.563713995964973},"2020":{"1":8.446066196986607,"2":-40.798694625686814,"3":-37.41182085980426,"4":6.8229131342290525,"5":5.028908718234891,"6":19.198397337525755,"7":13.842762008499312,"8":32.92656357314561,"9":8.706617793827267,"10":9.482476632254464,"11":22.96985370342548,"12":12.30873065655048},"2021":{"1":3.3408791208791206,"2":20.983204788375687,"3":16.65120879120879,"4":12.481978021978021,"5":12.34306887448489,"6":10.602417582417582,"7":25.23054945054945,"8":1.6727472527472527,"9":4.117362637362637,"10":29.094285714285718,"11":17.49010989010989,"12":17.103956043956046},"2022":{"1":-31.06813186813187,"2":-16.963736263736266,"3":8.05076923076923,"4":-47.50637362637363,"5":23.46769230769231,"6":-33.87604395604396,"7":18.838241758241757,"8":-41.098901098901095,"9":-41.680531260731456,"10":15.334554295801855,"11":64.7802238045158,"12":-21.9378021978022},"2023":{"1":35.26923076923077,"2":9.582637362637362,"3":-0.46219780219780227,"4":7.034505494505494,"5":-11.793186813186814,"6":15.812087912087913,"7":6.683516483516483,"8":-36.027472527472526,"9":6.570769230769232,"10":6.185274725274725,"11":16.462637362637363,"12":-8.42923076923077},"2024":{"1":25.52813186813187,"2":-38.54131868131868,"3":-15.628571428571428,"4":12.520439560439561,"5":4.774285714285714,"6":7.997142857142856,"7":-8.601978021978022,"8":40.144835164835165,"9":-26.87824175824176,"10":-4.847472527472528,"11":35.42945054945055,"12":7.892967032967032},"2025":{"1":4.251648351648352,"2":-2.805054945054945,"3":-17.153626373626373,"4":3.1323076923076925,"5":-35.879120879120876,"6":27.57120879120879,"7":21.34021978021978,"8":-1.270989010989011,"9":18.100647428743134,"10":42.019560439560436,"11":29.495604395604396,"12":-7.397142857142858},"2026":{"1":-37.63208791208791,"2":10.197142857142858,"3":-57.46505494505495,"4":44.36197802197802,"5":0.0,"6":0.0,"7":0.0,"8":0.0,"9":0.0,"10":0.0,"11":0.0,"12":0.0}},"yearly":[{"year":2015,"n":243,"pnl":298710.23,"pnl_pct":65.65060039142986,"win_rate":51.028806584362144,"pf":1.1552156927271833},{"year":2016,"n":245,"pnl":348412.61,"pnl_pct":76.57420064066793,"win_rate":56.326530612244895,"pf":1.1704502225687812},{"year":2017,"n":253,"pnl":617532.42,"pnl_pct":135.72141004625257,"win_rate":55.33596837944664,"pf":1.58138904710984},{"year":2018,"n":261,"pnl":232222.66,"pnl_pct":51.03794794438959,"win_rate":52.87356321839081,"pf":1.1201464338655736},{"year":2019,"n":241,"pnl":426160.06,"pnl_pct":93.66155175512964,"win_rate":56.43153526970954,"pf":1.253320855618079},{"year":2020,"n":242,"pnl":279928.62,"pnl_pct":61.52277426918784,"win_rate":54.54545454545454,"pf":1.1587011557174725},{"year":2021,"n":245,"pnl":778558.55,"pnl_pct":171.11176816835507,"win_rate":54.285714285714285,"pf":1.5155800317892698},{"year":2022,"n":244,"pnl":-471653.18,"pnl_pct":-103.66003887469952,"win_rate":44.26229508196721,"pf":0.8377588860070845},{"year":2023,"n":246,"pnl":213343.0,"pnl_pct":46.88857142857143,"win_rate":50.0,"pf":1.139511357453754},{"year":2024,"n":245,"pnl":181043.0,"pnl_pct":39.78967032967033,"win_rate":48.97959183673469,"pf":1.0970808918059862},{"year":2025,"n":243,"pnl":370393.95,"pnl_pct":81.40526281335852,"win_rate":48.971193415637856,"pf":1.1632437677260434},{"year":2026,"n":79,"pnl":-184448.0,"pnl_pct":-40.53802197802197,"win_rate":44.303797468354425,"pf":0.8069434137631109}],"metrics":{"label":"6758","n_trades":2787,"n_wins":1446,"n_losses":1232,"win_rate":51.88374596340151,"avg_win":16967.880799310667,"avg_loss":-17406.94132690925,"biggest_win":237759.9093017578,"biggest_loss":-154560.0,"total_pnl":3090203.9210510254,"pf":1.1440966770866845,"rf":3.7122235019377463,"expectancy":1108.7922214033101,"cagr":19.89912664746818,"annual_return":60.035157503690684,"total_return_pct":679.1656969342913,"sharpe":0.7835333406712952,"years":11.312799452429843,"start":"2015-01-06","end":"2026-04-30","final_equity":3545203.9210510254,"initial_margin":455000.0,"max_dd_peak_pct":-23.81740230179812,"max_dd_peak_jpy":-832440.1586914062,"max_dd_peak_date":"2022-10-13","peak_peak_date":"2022-01-05","peak_peak_value":3495092.152130127,"recovery_peak_date":null,"recovery_peak_days":null,"max_dd_init_pct":-182.9538810310783,"max_dd_init_jpy":-832440.1586914062,"max_dd_init_date":"2022-10-13","max_dd_jpy":-832440.1586914062,"max_dd_jpy_pct_peak":-23.81740230179812,"max_dd_jpy_pct_init":-182.9538810310783,"max_dd_jpy_date":"2022-10-13","peak_jpy_date":"2022-01-05","peak_jpy_value":3495092.152130127,"recovery_jpy_date":null,"recovery_jpy_days":null,"min_equity":304603.2261657715,"min_equity_date":"2015-02-02","min_equity_loss_jpy":-150396.77383422852,"min_equity_loss_pct":-33.05423600752275,"max_win_streak":11,"max_loss_streak":8},"equity_curve":[{"date":"2015-01","equity":337579.86},{"date":"2015-02","equity":670601.95},{"date":"2015-03","equity":622854.47},{"date":"2015-04","equity":732209.58},{"date":"2015-05","equity":736724.18},{"date":"2015-06","equity":695455.18},{"date":"2015-07","equity":689239.02},{"date":"2015-08","equity":687265.95},{"date":"2015-09","equity":644351.63},{"date":"2015-10","equity":787161.36},{"date":"2015-11","equity":819422.79},{"date":"2015-12","equity":753710.23},{"date":"2016-01","equity":592242.12},{"date":"2016-02","equity":663814.77},{"date":"2016-03","equity":744818.2},{"date":"2016-04","equity":566683.69},{"date":"2016-05","equity":610806.03},{"date":"2016-06","equity":695855.81},{"date":"2016-07","equity":874040.9},{"date":"2016-08","equity":959419.03},{"date":"2016-09","equity":891860.47},{"date":"2016-10","equity":980386.42},{"date":"2016-11","equity":1033553.19},{"date":"2016-12","equity":1102122.84},{"date":"2017-01","equity":1138069.79},{"date":"2017-02","equity":1238740.65},{"date":"2017-03","equity":1270042.2},{"date":"2017-04","equity":1273964.22},{"date":"2017-05","equity":1363956.38},{"date":"2017-06","equity":1392810.29},{"date":"2017-07","equity":1420605.57},{"date":"2017-08","equity":1385038.9},{"date":"2017-09","equity":1405473.71},{"date":"2017-10","equity":1492891.96},{"date":"2017-11","equity":1734435.5},{"date":"2017-12","equity":1719655.26},{"date":"2018-01","equity":1745220.96},{"date":"2018-02","equity":1823476.27},{"date":"2018-03","equity":1724757.7},{"date":"2018-04","equity":1798999.95},{"date":"2018-05","equity":1727101.15},{"date":"2018-06","equity":1801167.93},{"date":"2018-07","equity":1907113.77},{"date":"2018-08","equity":2062722.3},{"date":"2018-09","equity":2183456.38},{"date":"2018-10","equity":2083468.87},{"date":"2018-11","equity":1993719.3},{"date":"2018-12","equity":1951877.92},{"date":"2019-01","equity":2043180.33},{"date":"2019-02","equity":2023258.43},{"date":"2019-03","equity":1884955.84},{"date":"2019-04","equity":2053949.84},{"date":"2019-05","equity":2013863.65},{"date":"2019-06","equity":2086293.05},{"date":"2019-07","equity":2218788.33},{"date":"2019-08","equity":2130806.98},{"date":"2019-09","equity":2136316.16},{"date":"2019-10","equity":2259617.09},{"date":"2019-11","equity":2320873.09},{"date":"2019-12","equity":2378037.98},{"date":"2020-01","equity":2416467.59},{"date":"2020-02","equity":2230833.52},{"date":"2020-03","equity":2060609.74},{"date":"2020-04","equity":2091653.99},{"date":"2020-05","equity":2114535.53},{"date":"2020-06","equity":2201888.24},{"date":"2020-07","equity":2264872.8},{"date":"2020-08","equity":2414688.67},{"date":"2020-09","equity":2454303.78},{"date":"2020-10","equity":2497449.05},{"date":"2020-11","equity":2601961.88},{"date":"2020-12","equity":2657966.61},{"date":"2021-01","equity":2673167.61},{"date":"2021-02","equity":2768641.19},{"date":"2021-03","equity":2844404.19},{"date":"2021-04","equity":2901197.19},{"date":"2021-05","equity":2957358.15},{"date":"2021-06","equity":3005599.15},{"date":"2021-07","equity":3120398.15},{"date":"2021-08","equity":3128009.15},{"date":"2021-09","equity":3146743.15},{"date":"2021-10","equity":3279122.15},{"date":"2021-11","equity":3358702.15},{"date":"2021-12","equity":3436525.15},{"date":"2022-01","equity":3295165.15},{"date":"2022-02","equity":3217980.15},{"date":"2022-03","equity":3254611.15},{"date":"2022-04","equity":3038457.15},{"date":"2022-05","equity":3145235.15},{"date":"2022-06","equity":2991099.15},{"date":"2022-07","equity":3076813.15},{"date":"2022-08","equity":2889813.15},{"date":"2022-09","equity":2700166.73},{"date":"2022-10","equity":2769938.96},{"date":"2022-11","equity":3064688.98},{"date":"2022-12","equity":2964871.98},{"date":"2023-01","equity":3125346.98},{"date":"2023-02","equity":3168947.98},{"date":"2023-03","equity":3166844.98},{"date":"2023-04","equity":3198851.98},{"date":"2023-05","equity":3145192.98},{"date":"2023-06","equity":3217137.98},{"date":"2023-07","equity":3247547.98},{"date":"2023-08","equity":3083622.98},{"date":"2023-09","equity":3113519.98},{"date":"2023-10","equity":3141662.98},{"date":"2023-11","equity":3216567.98},{"date":"2023-12","equity":3178214.98},{"date":"2024-01","equity":3294367.98},{"date":"2024-02","equity":3119004.98},{"date":"2024-03","equity":3047894.98},{"date":"2024-04","equity":3104862.98},{"date":"2024-05","equity":3126585.98},{"date":"2024-06","equity":3162972.98},{"date":"2024-07","equity":3123833.98},{"date":"2024-08","equity":3306492.98},{"date":"2024-09","equity":3184196.98},{"date":"2024-10","equity":3162140.98},{"date":"2024-11","equity":3323344.98},{"date":"2024-12","equity":3359257.98},{"date":"2025-01","equity":3378602.98},{"date":"2025-02","equity":3365839.98},{"date":"2025-03","equity":3287790.98},{"date":"2025-04","equity":3302042.98},{"date":"2025-05","equity":3138792.98},{"date":"2025-06","equity":3264241.98},{"date":"2025-07","equity":3361339.98},{"date":"2025-08","equity":3355556.98},{"date":"2025-09","equity":3437914.92},{"date":"2025-10","equity":3629103.92},{"date":"2025-11","equity":3763308.92},{"date":"2025-12","equity":3729651.92},{"date":"2026-01","equity":3558425.92},{"date":"2026-02","equity":3604822.92},{"date":"2026-03","equity":3343356.92},{"date":"2026-04","equity":3545203.92}]}},"combined":{"monthly_matrix":{"2015":{"1":-13.335817280863669,"2":16.58479266826923,"3":1.6575038633241759,"4":-11.047066019917583,"5":6.021186738066621,"6":-14.71055199927026,"7":0.8208705625429259,"8":-31.580152950077267,"9":-16.425997971754807,"10":10.172221894316621,"11":-3.60062022450206,"12":-6.147377688229739},"2016":{"1":-6.972274558937157,"2":-50.82392763242617,"3":0.7539000257554945,"4":-3.7376019488324177,"5":-7.7563879528674455,"6":-22.2955468079284,"7":16.26920471862122,"8":6.260920893071773,"9":-35.65682348901099,"10":10.961531593406594,"11":46.612640608902815,"12":18.99536347441621},"2017":{"1":-9.676762534340659,"2":-0.42784963083791205,"3":-14.405870589371567,"4":-0.7268366082160027,"5":-3.4111794675051508,"6":-1.97634516118647,"7":-0.8076220971411401,"8":0.6133202588427198,"9":16.490166820484202,"10":13.128334129249655,"11":16.33965570806147,"12":2.463272986778846},"2018":{"1":-4.30309562263908,"2":2.5465933261074865,"3":-9.918241758241757,"4":14.896158246050826,"5":-1.475670662345467,"6":8.949073365599244,"7":13.906906469994848,"8":21.195782323145604,"9":6.335567667196084,"10":-6.921022251674107,"11":6.3406956129807694,"12":-7.110941953554257},"2019":{"1":1.2164798141311814,"2":0.4667186426854396,"3":2.7606514262105084,"4":16.156523035070396,"5":-17.254252017513735,"6":7.945709483387706,"7":-1.7586907355339971,"8":-26.19034928206559,"9":1.049335213126717,"10":3.7364396516569363,"11":5.559444056919642,"12":9.369566958919986},"2020":{"1":-5.696317474029876,"2":-29.37044200184581,"3":-55.55439131181319,"4":-22.461075238238323,"5":8.02926025390625,"6":0.23870804000686816,"7":-7.394909775283311,"8":20.320176586109202,"9":-9.289625820956388,"10":-7.171542834606799,"11":37.57252154339801,"12":28.819918736049104},"2021":{"1":-13.688677240728023,"2":38.74613600510817,"3":34.525502044342375,"4":20.67525181361607,"5":22.026329654232484,"6":8.935509288075206,"7":4.792278744205014,"8":17.032479395604398,"9":-3.159700672862294,"10":10.46043956043956,"11":32.04923076923077,"12":17.910989010989013},"2022":{"1":6.068351648351649,"2":-24.091868131868132,"3":8.175604395604395,"4":-29.787142857142857,"5":1.1781318681318682,"6":-3.8915384615384614,"7":14.078351648351648,"8":-22.402967032967034,"9":-30.614835164835164,"10":16.152307692307694,"11":2.185824175824176,"12":-12.53923076923077},"2023":{"1":-10.146813186813187,"2":6.567802197802197,"3":-15.561318681318681,"4":5.4302197802197805,"5":33.79032967032967,"6":71.12736263736264,"7":0.11197802197802198,"8":4.283626373626373,"9":1.6452747252747253,"10":-5.186923076923077,"11":54.59538461538461,"12":-23.048681318681318},"2024":{"1":31.714945054945055,"2":36.33714285714286,"3":3.1182417582417585,"4":13.734505494505495,"5":-10.891868131868133,"6":2.571648351648352,"7":-10.856263736263736,"8":13.532967032967033,"9":-19.560439560439562,"10":24.336153846153845,"11":21.600109890109888,"12":21.842417582417582},"2025":{"1":2.423956043956044,"2":-25.99252747252747,"3":-28.033626373626376,"4":22.21967032967033,"5":31.955714285714286,"6":0.6123076923076923,"7":30.513516483516483,"8":22.99186813186813,"9":11.170769230769231,"10":39.18153846153846,"11":24.807472527472527,"12":32.51736263736264},"2026":{"1":-2.848131868131868,"2":55.111648351648356,"3":-49.403296703296704,"4":40.89670329670329,"5":0.0,"6":0.0,"7":0.0,"8":0.0,"9":0.0,"10":0.0,"11":0.0,"12":0.0}},"yearly":[{"year":2015,"n":243,"pnl":-280239.09,"pnl_pct":-61.59100840809582,"win_rate":48.971193415637856,"pf":0.813312346432612},{"year":2016,"n":245,"pnl":-124619.95,"pnl_pct":-27.389001075828467,"win_rate":46.53061224489796,"pf":0.9422734023492738},{"year":2017,"n":253,"pnl":80090.39,"pnl_pct":17.602283814817994,"win_rate":48.616600790513836,"pf":1.07634058661356},{"year":2018,"n":261,"pnl":202210.21,"pnl_pct":44.441804762620194,"win_rate":51.724137931034484,"pf":1.170695321603361},{"year":2019,"n":241,"pnl":13911.97,"pnl_pct":3.0575762469951924,"win_rate":57.676348547717836,"pf":1.0147997828473498},{"year":2020,"n":242,"pnl":-190907.62,"pnl_pct":-41.95771929730426,"win_rate":47.107438016528924,"pf":0.8915260361924889},{"year":2021,"n":245,"pnl":865891.25,"pnl_pct":190.30576837225274,"win_rate":58.77551020408164,"pf":1.9205224208388558},{"year":2022,"n":244,"pnl":-343475.0,"pnl_pct":-75.48901098901098,"win_rate":45.49180327868852,"pf":0.8194009089501382},{"year":2023,"n":246,"pnl":562417.5,"pnl_pct":123.60824175824176,"win_rate":57.3170731707317,"pf":1.467128631212009},{"year":2024,"n":245,"pnl":580032.0,"pnl_pct":127.47956043956043,"win_rate":56.734693877551024,"pf":1.3384292323710707},{"year":2025,"n":243,"pnl":747874.5,"pnl_pct":164.36802197802197,"win_rate":54.73251028806584,"pf":1.468491186440041},{"year":2026,"n":79,"pnl":199094.0,"pnl_pct":43.75692307692308,"win_rate":51.89873417721519,"pf":1.244263439494822}],"metrics":{"label":"7203","n_trades":2787,"n_wins":1453,"n_losses":1230,"win_rate":52.13491209185504,"avg_win":13129.876995341334,"avg_loss":-13630.43180417937,"biggest_win":201600.0,"biggest_loss":-101345.56811523438,"total_pnl":2312280.155090332,"pf":1.1379195165730314,"rf":2.8525275407202093,"expectancy":829.6663635056807,"cagr":17.302082360921855,"annual_return":44.92198794967946,"total_return_pct":508.1934406791938,"sharpe":0.4696200287759277,"years":11.312799452429843,"start":"2015-01-06","end":"2026-04-30","final_equity":2767280.155090332,"initial_margin":455000.0,"max_dd_peak_pct":-165.0026712916784,"max_dd_peak_jpy":-810607.4777832031,"max_dd_peak_date":"2016-06-28","peak_peak_date":"2015-03-03","peak_peak_value":491269.3057861328,"recovery_peak_date":null,"recovery_peak_days":null,"max_dd_init_pct":-178.15548962268198,"max_dd_init_jpy":-810607.4777832031,"max_dd_init_date":"2016-06-28","max_dd_jpy":-810607.4777832031,"max_dd_jpy_pct_peak":-165.0026712916784,"max_dd_jpy_pct_init":-178.15548962268198,"max_dd_jpy_date":"2016-06-28","peak_jpy_date":"2015-03-03","peak_jpy_value":491269.3057861328,"recovery_jpy_date":null,"recovery_jpy_days":null,"min_equity":-319338.1719970703,"min_equity_date":"2016-06-28","min_equity_loss_jpy":-774338.1719970703,"min_equity_loss_pct":-170.18421362572974,"max_win_streak":13,"max_loss_streak":10},"equity_curve":[{"date":"2015-01","equity":394322.03},{"date":"2015-02","equity":469782.84},{"date":"2015-03","equity":477324.48},{"date":"2015-04","equity":427060.33},{"date":"2015-05","equity":454456.73},{"date":"2015-06","equity":387523.72},{"date":"2015-07","equity":391258.68},{"date":"2015-08","equity":247568.98},{"date":"2015-09","equity":172830.69},{"date":"2015-10","equity":219114.3},{"date":"2015-11","equity":202731.48},{"date":"2015-12","equity":174760.91},{"date":"2016-01","equity":143037.06},{"date":"2016-02","equity":-88211.81},{"date":"2016-03","equity":-84781.56},{"date":"2016-04","equity":-101787.65},{"date":"2016-05","equity":-137079.22},{"date":"2016-06","equity":-238523.96},{"date":"2016-07","equity":-164499.07},{"date":"2016-08","equity":-136011.88},{"date":"2016-09","equity":-298250.43},{"date":"2016-10","equity":-248375.46},{"date":"2016-11","equity":-36287.95},{"date":"2016-12","equity":50140.96},{"date":"2017-01","equity":6111.69},{"date":"2017-02","equity":4164.97},{"date":"2017-03","equity":-61381.74},{"date":"2017-04","equity":-64688.85},{"date":"2017-05","equity":-80209.71},{"date":"2017-06","equity":-89202.08},{"date":"2017-07","equity":-92876.76},{"date":"2017-08","equity":-90086.16},{"date":"2017-09","equity":-15055.9},{"date":"2017-10","equity":44678.02},{"date":"2017-11","equity":119023.46},{"date":"2017-12","equity":130231.35},{"date":"2018-01","equity":110652.26},{"date":"2018-02","equity":122239.26},{"date":"2018-03","equity":77111.26},{"date":"2018-04","equity":144888.78},{"date":"2018-05","equity":138174.48},{"date":"2018-06","equity":178892.77},{"date":"2018-07","equity":242169.19},{"date":"2018-08","equity":338610.0},{"date":"2018-09","equity":367436.83},{"date":"2018-10","equity":335946.18},{"date":"2018-11","equity":364796.35},{"date":"2018-12","equity":332441.56},{"date":"2019-01","equity":337976.54},{"date":"2019-02","equity":340100.11},{"date":"2019-03","equity":352661.08},{"date":"2019-04","equity":426173.26},{"date":"2019-05","equity":347666.41},{"date":"2019-06","equity":383819.39},{"date":"2019-07","equity":375817.35},{"date":"2019-08","equity":256651.26},{"date":"2019-09","equity":261425.73},{"date":"2019-10","equity":278426.53},{"date":"2019-11","equity":303722.0},{"date":"2019-12","equity":346353.53},{"date":"2020-01","equity":320435.29},{"date":"2020-02","equity":186799.78},{"date":"2020-03","equity":-65972.7},{"date":"2020-04","equity":-168170.6},{"date":"2020-05","equity":-131637.46},{"date":"2020-06","equity":-130551.34},{"date":"2020-07","equity":-164198.18},{"date":"2020-08","equity":-71741.38},{"date":"2020-09","equity":-114009.17},{"date":"2020-10","equity":-146639.69},{"date":"2020-11","equity":24315.28},{"date":"2020-12","equity":155445.91},{"date":"2021-01","equity":93162.43},{"date":"2021-02","equity":269457.35},{"date":"2021-03","equity":426548.38},{"date":"2021-04","equity":520620.78},{"date":"2021-05","equity":620840.58},{"date":"2021-06","equity":661497.14},{"date":"2021-07","equity":683302.01},{"date":"2021-08","equity":760799.79},{"date":"2021-09","equity":746423.16},{"date":"2021-10","equity":794018.16},{"date":"2021-11","equity":939842.16},{"date":"2021-12","equity":1021337.16},{"date":"2022-01","equity":1048948.16},{"date":"2022-02","equity":939330.16},{"date":"2022-03","equity":976529.16},{"date":"2022-04","equity":840997.66},{"date":"2022-05","equity":846358.16},{"date":"2022-06","equity":828651.66},{"date":"2022-07","equity":892708.16},{"date":"2022-08","equity":790774.66},{"date":"2022-09","equity":651477.16},{"date":"2022-10","equity":724970.16},{"date":"2022-11","equity":734915.66},{"date":"2022-12","equity":677862.16},{"date":"2023-01","equity":631694.16},{"date":"2023-02","equity":661577.66},{"date":"2023-03","equity":590773.66},{"date":"2023-04","equity":615481.16},{"date":"2023-05","equity":769227.16},{"date":"2023-06","equity":1092856.66},{"date":"2023-07","equity":1093366.16},{"date":"2023-08","equity":1112856.66},{"date":"2023-09","equity":1120342.66},{"date":"2023-10","equity":1096742.16},{"date":"2023-11","equity":1345151.16},{"date":"2023-12","equity":1240279.66},{"date":"2024-01","equity":1384582.66},{"date":"2024-02","equity":1549916.66},{"date":"2024-03","equity":1564104.66},{"date":"2024-04","equity":1626596.66},{"date":"2024-05","equity":1577038.66},{"date":"2024-06","equity":1588739.66},{"date":"2024-07","equity":1539343.66},{"date":"2024-08","equity":1600918.66},{"date":"2024-09","equity":1511918.66},{"date":"2024-10","equity":1622648.16},{"date":"2024-11","equity":1720928.66},{"date":"2024-12","equity":1820311.66},{"date":"2025-01","equity":1831340.66},{"date":"2025-02","equity":1713074.66},{"date":"2025-03","equity":1585521.66},{"date":"2025-04","equity":1686621.16},{"date":"2025-05","equity":1832019.66},{"date":"2025-06","equity":1834805.66},{"date":"2025-07","equity":1973642.16},{"date":"2025-08","equity":2078255.16},{"date":"2025-09","equity":2129082.16},{"date":"2025-10","equity":2307358.16},{"date":"2025-11","equity":2420232.16},{"date":"2025-12","equity":2568186.16},{"date":"2026-01","equity":2555227.16},{"date":"2026-02","equity":2805985.16},{"date":"2026-03","equity":2581200.16},{"date":"2026-04","equity":2767280.16}]}},"all":{"per_stock":{"8035":{"monthly_matrix":{"2015":{"1":-17.266299954927884,"2":39.4783268050309,"3":-10.539842623197115,"4":-52.05535494290865,"5":17.932634733430632,"6":-8.639486499828298,"7":-27.44746034726992,"8":-33.258612530048076,"9":-24.703890716217376,"10":40.93110694969093,"11":-5.6784936255151095,"12":4.895217902214973},"2016":{"1":11.41487031035371,"2":7.294713523780906,"3":30.265877457503432,"4":18.207931350875686,"5":57.12949288504464,"6":-2.9230770303914833,"7":14.02205813229739,"8":41.08022804344094,"9":-5.776065097012363,"10":14.787252532623626,"11":51.0867472420158,"12":14.356092784168956},"2017":{"1":10.704754678914835,"2":5.854607496995192,"3":1.288299600789835,"4":23.41067452566964,"5":32.19563573145604,"6":-10.685682520604397,"7":-0.2806200635302198,"8":3.912076429429945,"9":26.578685182005497,"10":31.634372317135988,"11":-0.6805601820054945,"12":3.5908491801167584},"2018":{"1":16.35242402129121,"2":20.037412967891484,"3":-25.49228451236264,"4":9.077003133585166,"5":18.94030026614011,"6":1.3680895861950548,"7":-9.114678163633242,"8":-13.556410327953298,"9":-32.40074025583791,"10":-29.736756632039835,"11":-29.21753069196428,"12":-35.99605119977679},"2019":{"1":22.199129947201236,"2":15.659381760817306,"3":13.944665285885987,"4":33.913641826923076,"5":-22.84762663118132,"6":-8.400731348729396,"7":27.68537828382555,"8":-25.644321342719778,"9":10.671043848729395,"10":20.209127103365386,"11":4.474761332417582,"12":24.723387276785715},"2020":{"1":12.202582739526099,"2":-22.36970724587912,"3":17.31060106885302,"4":41.151673033997255,"5":6.363391247424451,"6":35.71059774210165,"7":19.46053721668956,"8":5.906234975961539,"9":7.594141483516484,"10":-4.225798420329671,"11":30.92894574175824,"12":-4.816927369505494},"2021":{"1":10.420502661401098,"2":2.817549579326923,"3":34.802834392170325,"4":9.573658567994507,"5":1.4124864783653845,"6":6.636529876373626,"7":-15.709889466002746,"8":10.370674579326923,"9":0.45852764423076925,"10":21.94217784168956,"11":27.897461796016483,"12":25.520169127747256},"2022":{"1":-30.717916380494504,"2":-3.0892642513736264,"3":16.863792496565935,"4":-37.00081387362638,"5":21.618347785027474,"6":-52.29161873282967,"7":27.63512899210165,"8":-36.542097570398354,"9":-36.985966045673074,"10":3.5721529447115383,"11":25.75166659512363,"12":-28.463758370535714},"2023":{"1":24.682805846497253,"2":30.52237851991758,"3":17.337761632898353,"4":-1.0153846153846153,"5":66.77582417582417,"6":-12.919780219780218,"7":6.251648351648352,"8":10.951648351648352,"9":-31.1010989010989,"10":-24.42197802197802,"11":60.14835164835165,"12":28.690109890109888},"2024":{"1":44.35164835164835,"2":59.77692307692307,"3":5.241758241758242,"4":-0.27252747252747256,"5":21.085714285714285,"6":18.536263736263734,"7":-48.42197802197802,"8":2.8637362637362638,"9":38.01428571428571,"10":-9.462637362637363,"11":9.35934065934066,"12":22.97032967032967},"2025":{"1":28.83846153846154,"2":-34.8,"3":-21.174725274725276,"4":9.64065934065934,"5":50.325274725274724,"6":52.70769230769231,"7":-8.319780219780219,"8":-108.51868131868132,"9":25.160439560439563,"10":50.06813186813187,"11":19.58681318681319,"12":20.852747252747253},"2026":{"1":42.22857142857143,"2":3.0703296703296705,"3":-63.30549450549451,"4":64.3978021978022,"5":0.0,"6":0.0,"7":0.0,"8":0.0,"9":0.0,"10":0.0,"11":0.0,"12":0.0}},"yearly":[{"year":2015,"n":243,"pnl":-347402.3,"pnl_pct":-76.35215484954499,"win_rate":48.559670781893004,"pf":0.8498277081288446},{"year":2016,"n":245,"pnl":1141804.86,"pnl_pct":250.94612213470123,"win_rate":55.10204081632652,"pf":1.734852747503763},{"year":2017,"n":253,"pnl":580230.07,"pnl_pct":127.52309237637363,"win_rate":53.359683794466406,"pf":1.3814971638588573},{"year":2018,"n":261,"pnl":-499313.46,"pnl_pct":-109.73922180846498,"win_rate":45.21072796934866,"pf":0.815310687851685},{"year":2019,"n":241,"pnl":530474.66,"pnl_pct":116.58783734332074,"win_rate":55.18672199170125,"pf":1.2794753022229104},{"year":2020,"n":242,"pnl":660734.04,"pnl_pct":145.216272214114,"win_rate":55.371900826446286,"pf":1.324349185841468},{"year":2021,"n":245,"pnl":619449.21,"pnl_pct":136.1426830786401,"win_rate":53.06122448979592,"pf":1.3060896833474531},{"year":2022,"n":244,"pnl":-589909.08,"pnl_pct":-129.6503464114011,"win_rate":43.85245901639344,"pf":0.807781425122626},{"year":2023,"n":246,"pnl":800355.4,"pnl_pct":175.90228665865385,"win_rate":50.81300813008131,"pf":1.4066984501167452},{"year":2024,"n":245,"pnl":746395.0,"pnl_pct":164.04285714285714,"win_rate":52.244897959183675,"pf":1.2475790067252117},{"year":2025,"n":243,"pnl":383870.0,"pnl_pct":84.36703296703297,"win_rate":56.37860082304527,"pf":1.1269241387975486},{"year":2026,"n":79,"pnl":211080.0,"pnl_pct":46.3912087912088,"win_rate":54.43037974683544,"pf":1.1949318458867422}],"metrics":{"label":"8035","n_trades":2787,"n_wins":1443,"n_losses":1255,"win_rate":51.77610333692142,"avg_win":21099.961537192616,"avg_loss":-20884.044702245705,"biggest_win":240800.0,"biggest_loss":-270000.0,"total_pnl":4237768.396850586,"pf":1.1616884053869898,"rf":5.054926855340513,"expectancy":1520.5484021710033,"cagr":22.90838607066863,"annual_return":82.32954836280099,"total_return_pct":931.3776696374914,"sharpe":0.6396304540910249,"years":11.312799452429843,"start":"2015-01-06","end":"2026-04-30","final_equity":4692768.396850586,"initial_margin":455000.0,"max_dd_peak_pct":-40.5657270965053,"max_dd_peak_jpy":-838344.1577148438,"max_dd_peak_date":"2018-12-25","peak_peak_date":"2018-03-12","peak_peak_value":2066631.6561279297,"recovery_peak_date":null,"recovery_peak_days":null,"max_dd_init_pct":-184.25146323403158,"max_dd_init_jpy":-838344.1577148438,"max_dd_init_date":"2018-12-25","max_dd_jpy":-838344.1577148438,"max_dd_jpy_pct_peak":-40.5657270965053,"max_dd_jpy_pct_init":-184.25146323403158,"max_dd_jpy_date":"2018-12-25","peak_jpy_date":"2018-03-12","peak_jpy_value":2066631.6561279297,"recovery_jpy_date":null,"recovery_jpy_days":null,"min_equity":-86381.63745117188,"min_equity_date":"2015-10-02","min_equity_loss_jpy":-541381.6374511719,"min_equity_loss_pct":-118.9849752639938,"max_win_streak":12,"max_loss_streak":10},"equity_curve":[{"date":"2015-01","equity":376438.34},{"date":"2015-02","equity":556064.72},{"date":"2015-03","equity":508108.44},{"date":"2015-04","equity":271256.57},{"date":"2015-05","equity":352850.06},{"date":"2015-06","equity":313540.4},{"date":"2015-07","equity":188654.45},{"date":"2015-08","equity":37327.77},{"date":"2015-09","equity":-75074.94},{"date":"2015-10","equity":111161.6},{"date":"2015-11","equity":85324.45},{"date":"2015-12","equity":107597.7},{"date":"2016-01","equity":159535.36},{"date":"2016-02","equity":192726.3},{"date":"2016-03","equity":330436.04},{"date":"2016-04","equity":413282.13},{"date":"2016-05","equity":673221.32},{"date":"2016-06","equity":659921.32},{"date":"2016-07","equity":723721.69},{"date":"2016-08","equity":910636.73},{"date":"2016-09","equity":884355.63},{"date":"2016-10","equity":951637.63},{"date":"2016-11","equity":1184082.33},{"date":"2016-12","equity":1249402.55},{"date":"2017-01","equity":1298109.18},{"date":"2017-02","equity":1324747.65},{"date":"2017-03","equity":1330609.41},{"date":"2017-04","equity":1437127.98},{"date":"2017-05","equity":1583618.12},{"date":"2017-06","equity":1534998.27},{"date":"2017-07","equity":1533721.45},{"date":"2017-08","equity":1551521.39},{"date":"2017-09","equity":1672454.41},{"date":"2017-10","equity":1816390.81},{"date":"2017-11","equity":1813294.26},{"date":"2017-12","equity":1829632.62},{"date":"2018-01","equity":1904036.15},{"date":"2018-02","equity":1995206.38},{"date":"2018-03","equity":1879216.49},{"date":"2018-04","equity":1920516.85},{"date":"2018-05","equity":2006695.22},{"date":"2018-06","equity":2012920.02},{"date":"2018-07","equity":1971448.24},{"date":"2018-08","equity":1909766.57},{"date":"2018-09","equity":1762343.2},{"date":"2018-10","equity":1627040.96},{"date":"2018-11","equity":1494101.2},{"date":"2018-12","equity":1330319.16},{"date":"2019-01","equity":1431325.2},{"date":"2019-02","equity":1502575.39},{"date":"2019-03","equity":1566023.62},{"date":"2019-04","equity":1720330.69},{"date":"2019-05","equity":1616373.99},{"date":"2019-06","equity":1578150.66},{"date":"2019-07","equity":1704119.13},{"date":"2019-08","equity":1587437.47},{"date":"2019-09","equity":1635990.72},{"date":"2019-10","equity":1727942.25},{"date":"2019-11","equity":1748302.41},{"date":"2019-12","equity":1860793.82},{"date":"2020-01","equity":1916315.57},{"date":"2020-02","equity":1814533.41},{"date":"2020-03","equity":1893296.64},{"date":"2020-04","equity":2080536.75},{"date":"2020-05","equity":2109490.18},{"date":"2020-06","equity":2271973.4},{"date":"2020-07","equity":2360518.85},{"date":"2020-08","equity":2387392.22},{"date":"2020-09","equity":2421945.56},{"date":"2020-10","equity":2402718.18},{"date":"2020-11","equity":2543444.88},{"date":"2020-12","equity":2521527.86},{"date":"2021-01","equity":2568941.15},{"date":"2021-02","equity":2581761.0},{"date":"2021-03","equity":2740113.89},{"date":"2021-04","equity":2783674.04},{"date":"2021-05","equity":2790100.85},{"date":"2021-06","equity":2820297.07},{"date":"2021-07","equity":2748817.07},{"date":"2021-08","equity":2796003.64},{"date":"2021-09","equity":2798089.94},{"date":"2021-10","equity":2897926.85},{"date":"2021-11","equity":3024860.3},{"date":"2021-12","equity":3140977.07},{"date":"2022-01","equity":3001210.55},{"date":"2022-02","equity":2987154.4},{"date":"2022-03","equity":3063884.65},{"date":"2022-04","equity":2895530.95},{"date":"2022-05","equity":2993894.43},{"date":"2022-06","equity":2755967.57},{"date":"2022-07","equity":2881707.4},{"date":"2022-08","equity":2715440.86},{"date":"2022-09","equity":2547154.71},{"date":"2022-10","equity":2563408.01},{"date":"2022-11","equity":2680578.09},{"date":"2022-12","equity":2551067.99},{"date":"2023-01","equity":2663374.76},{"date":"2023-02","equity":2802251.58},{"date":"2023-03","equity":2881138.4},{"date":"2023-04","equity":2876518.4},{"date":"2023-05","equity":3180348.4},{"date":"2023-06","equity":3121563.4},{"date":"2023-07","equity":3150008.4},{"date":"2023-08","equity":3199838.4},{"date":"2023-09","equity":3058328.4},{"date":"2023-10","equity":2947208.4},{"date":"2023-11","equity":3220883.4},{"date":"2023-12","equity":3351423.4},{"date":"2024-01","equity":3553223.4},{"date":"2024-02","equity":3825208.4},{"date":"2024-03","equity":3849058.4},{"date":"2024-04","equity":3847818.4},{"date":"2024-05","equity":3943758.4},{"date":"2024-06","equity":4028098.4},{"date":"2024-07","equity":3807778.4},{"date":"2024-08","equity":3820808.4},{"date":"2024-09","equity":3993773.4},{"date":"2024-10","equity":3950718.4},{"date":"2024-11","equity":3993303.4},{"date":"2024-12","equity":4097818.4},{"date":"2025-01","equity":4229033.4},{"date":"2025-02","equity":4070693.4},{"date":"2025-03","equity":3974348.4},{"date":"2025-04","equity":4018213.4},{"date":"2025-05","equity":4247193.4},{"date":"2025-06","equity":4487013.4},{"date":"2025-07","equity":4449158.4},{"date":"2025-08","equity":3955398.4},{"date":"2025-09","equity":4069878.4},{"date":"2025-10","equity":4297688.4},{"date":"2025-11","equity":4386808.4},{"date":"2025-12","equity":4481688.4},{"date":"2026-01","equity":4673828.4},{"date":"2026-02","equity":4687798.4},{"date":"2026-03","equity":4399758.4},{"date":"2026-04","equity":4692768.4}]},"7203":{"monthly_matrix":{"2015":{"1":-13.335817280863669,"2":16.58479266826923,"3":1.6575038633241759,"4":-11.047066019917583,"5":6.021186738066621,"6":-14.71055199927026,"7":0.8208705625429259,"8":-31.580152950077267,"9":-16.425997971754807,"10":10.172221894316621,"11":-3.60062022450206,"12":-6.147377688229739},"2016":{"1":-6.972274558937157,"2":-50.82392763242617,"3":0.7539000257554945,"4":-3.7376019488324177,"5":-7.7563879528674455,"6":-22.2955468079284,"7":16.26920471862122,"8":6.260920893071773,"9":-35.65682348901099,"10":10.961531593406594,"11":46.612640608902815,"12":18.99536347441621},"2017":{"1":-9.676762534340659,"2":-0.42784963083791205,"3":-14.405870589371567,"4":-0.7268366082160027,"5":-3.4111794675051508,"6":-1.97634516118647,"7":-0.8076220971411401,"8":0.6133202588427198,"9":16.490166820484202,"10":13.128334129249655,"11":16.33965570806147,"12":2.463272986778846},"2018":{"1":-4.30309562263908,"2":2.5465933261074865,"3":-9.918241758241757,"4":14.896158246050826,"5":-1.475670662345467,"6":8.949073365599244,"7":13.906906469994848,"8":21.195782323145604,"9":6.335567667196084,"10":-6.921022251674107,"11":6.3406956129807694,"12":-7.110941953554257},"2019":{"1":1.2164798141311814,"2":0.4667186426854396,"3":2.7606514262105084,"4":16.156523035070396,"5":-17.254252017513735,"6":7.945709483387706,"7":-1.7586907355339971,"8":-26.19034928206559,"9":1.049335213126717,"10":3.7364396516569363,"11":5.559444056919642,"12":9.369566958919986},"2020":{"1":-5.696317474029876,"2":-29.37044200184581,"3":-55.55439131181319,"4":-22.461075238238323,"5":8.02926025390625,"6":0.23870804000686816,"7":-7.394909775283311,"8":20.320176586109202,"9":-9.289625820956388,"10":-7.171542834606799,"11":37.57252154339801,"12":28.819918736049104},"2021":{"1":-13.688677240728023,"2":38.74613600510817,"3":34.525502044342375,"4":20.67525181361607,"5":22.026329654232484,"6":8.935509288075206,"7":4.792278744205014,"8":17.032479395604398,"9":-3.159700672862294,"10":10.46043956043956,"11":32.04923076923077,"12":17.910989010989013},"2022":{"1":6.068351648351649,"2":-24.091868131868132,"3":8.175604395604395,"4":-29.787142857142857,"5":1.1781318681318682,"6":-3.8915384615384614,"7":14.078351648351648,"8":-22.402967032967034,"9":-30.614835164835164,"10":16.152307692307694,"11":2.185824175824176,"12":-12.53923076923077},"2023":{"1":-10.146813186813187,"2":6.567802197802197,"3":-15.561318681318681,"4":5.4302197802197805,"5":33.79032967032967,"6":71.12736263736264,"7":0.11197802197802198,"8":4.283626373626373,"9":1.6452747252747253,"10":-5.186923076923077,"11":54.59538461538461,"12":-23.048681318681318},"2024":{"1":31.714945054945055,"2":36.33714285714286,"3":3.1182417582417585,"4":13.734505494505495,"5":-10.891868131868133,"6":2.571648351648352,"7":-10.856263736263736,"8":13.532967032967033,"9":-19.560439560439562,"10":24.336153846153845,"11":21.600109890109888,"12":21.842417582417582},"2025":{"1":2.423956043956044,"2":-25.99252747252747,"3":-28.033626373626376,"4":22.21967032967033,"5":31.955714285714286,"6":0.6123076923076923,"7":30.513516483516483,"8":22.99186813186813,"9":11.170769230769231,"10":39.18153846153846,"11":24.807472527472527,"12":32.51736263736264},"2026":{"1":-2.848131868131868,"2":55.111648351648356,"3":-49.403296703296704,"4":40.89670329670329,"5":0.0,"6":0.0,"7":0.0,"8":0.0,"9":0.0,"10":0.0,"11":0.0,"12":0.0}},"yearly":[{"year":2015,"n":243,"pnl":-280239.09,"pnl_pct":-61.59100840809582,"win_rate":48.971193415637856,"pf":0.813312346432612},{"year":2016,"n":245,"pnl":-124619.95,"pnl_pct":-27.389001075828467,"win_rate":46.53061224489796,"pf":0.9422734023492738},{"year":2017,"n":253,"pnl":80090.39,"pnl_pct":17.602283814817994,"win_rate":48.616600790513836,"pf":1.07634058661356},{"year":2018,"n":261,"pnl":202210.21,"pnl_pct":44.441804762620194,"win_rate":51.724137931034484,"pf":1.170695321603361},{"year":2019,"n":241,"pnl":13911.97,"pnl_pct":3.0575762469951924,"win_rate":57.676348547717836,"pf":1.0147997828473498},{"year":2020,"n":242,"pnl":-190907.62,"pnl_pct":-41.95771929730426,"win_rate":47.107438016528924,"pf":0.8915260361924889},{"year":2021,"n":245,"pnl":865891.25,"pnl_pct":190.30576837225274,"win_rate":58.77551020408164,"pf":1.9205224208388558},{"year":2022,"n":244,"pnl":-343475.0,"pnl_pct":-75.48901098901098,"win_rate":45.49180327868852,"pf":0.8194009089501382},{"year":2023,"n":246,"pnl":562417.5,"pnl_pct":123.60824175824176,"win_rate":57.3170731707317,"pf":1.467128631212009},{"year":2024,"n":245,"pnl":580032.0,"pnl_pct":127.47956043956043,"win_rate":56.734693877551024,"pf":1.3384292323710707},{"year":2025,"n":243,"pnl":747874.5,"pnl_pct":164.36802197802197,"win_rate":54.73251028806584,"pf":1.468491186440041},{"year":2026,"n":79,"pnl":199094.0,"pnl_pct":43.75692307692308,"win_rate":51.89873417721519,"pf":1.244263439494822}],"metrics":{"label":"7203","n_trades":2787,"n_wins":1453,"n_losses":1230,"win_rate":52.13491209185504,"avg_win":13129.876995341334,"avg_loss":-13630.43180417937,"biggest_win":201600.0,"biggest_loss":-101345.56811523438,"total_pnl":2312280.155090332,"pf":1.1379195165730314,"rf":2.8525275407202093,"expectancy":829.6663635056807,"cagr":17.302082360921855,"annual_return":44.92198794967946,"total_return_pct":508.1934406791938,"sharpe":0.4696200287759277,"years":11.312799452429843,"start":"2015-01-06","end":"2026-04-30","final_equity":2767280.155090332,"initial_margin":455000.0,"max_dd_peak_pct":-165.0026712916784,"max_dd_peak_jpy":-810607.4777832031,"max_dd_peak_date":"2016-06-28","peak_peak_date":"2015-03-03","peak_peak_value":491269.3057861328,"recovery_peak_date":null,"recovery_peak_days":null,"max_dd_init_pct":-178.15548962268198,"max_dd_init_jpy":-810607.4777832031,"max_dd_init_date":"2016-06-28","max_dd_jpy":-810607.4777832031,"max_dd_jpy_pct_peak":-165.0026712916784,"max_dd_jpy_pct_init":-178.15548962268198,"max_dd_jpy_date":"2016-06-28","peak_jpy_date":"2015-03-03","peak_jpy_value":491269.3057861328,"recovery_jpy_date":null,"recovery_jpy_days":null,"min_equity":-319338.1719970703,"min_equity_date":"2016-06-28","min_equity_loss_jpy":-774338.1719970703,"min_equity_loss_pct":-170.18421362572974,"max_win_streak":13,"max_loss_streak":10},"equity_curve":[{"date":"2015-01","equity":394322.03},{"date":"2015-02","equity":469782.84},{"date":"2015-03","equity":477324.48},{"date":"2015-04","equity":427060.33},{"date":"2015-05","equity":454456.73},{"date":"2015-06","equity":387523.72},{"date":"2015-07","equity":391258.68},{"date":"2015-08","equity":247568.98},{"date":"2015-09","equity":172830.69},{"date":"2015-10","equity":219114.3},{"date":"2015-11","equity":202731.48},{"date":"2015-12","equity":174760.91},{"date":"2016-01","equity":143037.06},{"date":"2016-02","equity":-88211.81},{"date":"2016-03","equity":-84781.56},{"date":"2016-04","equity":-101787.65},{"date":"2016-05","equity":-137079.22},{"date":"2016-06","equity":-238523.96},{"date":"2016-07","equity":-164499.07},{"date":"2016-08","equity":-136011.88},{"date":"2016-09","equity":-298250.43},{"date":"2016-10","equity":-248375.46},{"date":"2016-11","equity":-36287.95},{"date":"2016-12","equity":50140.96},{"date":"2017-01","equity":6111.69},{"date":"2017-02","equity":4164.97},{"date":"2017-03","equity":-61381.74},{"date":"2017-04","equity":-64688.85},{"date":"2017-05","equity":-80209.71},{"date":"2017-06","equity":-89202.08},{"date":"2017-07","equity":-92876.76},{"date":"2017-08","equity":-90086.16},{"date":"2017-09","equity":-15055.9},{"date":"2017-10","equity":44678.02},{"date":"2017-11","equity":119023.46},{"date":"2017-12","equity":130231.35},{"date":"2018-01","equity":110652.26},{"date":"2018-02","equity":122239.26},{"date":"2018-03","equity":77111.26},{"date":"2018-04","equity":144888.78},{"date":"2018-05","equity":138174.48},{"date":"2018-06","equity":178892.77},{"date":"2018-07","equity":242169.19},{"date":"2018-08","equity":338610.0},{"date":"2018-09","equity":367436.83},{"date":"2018-10","equity":335946.18},{"date":"2018-11","equity":364796.35},{"date":"2018-12","equity":332441.56},{"date":"2019-01","equity":337976.54},{"date":"2019-02","equity":340100.11},{"date":"2019-03","equity":352661.08},{"date":"2019-04","equity":426173.26},{"date":"2019-05","equity":347666.41},{"date":"2019-06","equity":383819.39},{"date":"2019-07","equity":375817.35},{"date":"2019-08","equity":256651.26},{"date":"2019-09","equity":261425.73},{"date":"2019-10","equity":278426.53},{"date":"2019-11","equity":303722.0},{"date":"2019-12","equity":346353.53},{"date":"2020-01","equity":320435.29},{"date":"2020-02","equity":186799.78},{"date":"2020-03","equity":-65972.7},{"date":"2020-04","equity":-168170.6},{"date":"2020-05","equity":-131637.46},{"date":"2020-06","equity":-130551.34},{"date":"2020-07","equity":-164198.18},{"date":"2020-08","equity":-71741.38},{"date":"2020-09","equity":-114009.17},{"date":"2020-10","equity":-146639.69},{"date":"2020-11","equity":24315.28},{"date":"2020-12","equity":155445.91},{"date":"2021-01","equity":93162.43},{"date":"2021-02","equity":269457.35},{"date":"2021-03","equity":426548.38},{"date":"2021-04","equity":520620.78},{"date":"2021-05","equity":620840.58},{"date":"2021-06","equity":661497.14},{"date":"2021-07","equity":683302.01},{"date":"2021-08","equity":760799.79},{"date":"2021-09","equity":746423.16},{"date":"2021-10","equity":794018.16},{"date":"2021-11","equity":939842.16},{"date":"2021-12","equity":1021337.16},{"date":"2022-01","equity":1048948.16},{"date":"2022-02","equity":939330.16},{"date":"2022-03","equity":976529.16},{"date":"2022-04","equity":840997.66},{"date":"2022-05","equity":846358.16},{"date":"2022-06","equity":828651.66},{"date":"2022-07","equity":892708.16},{"date":"2022-08","equity":790774.66},{"date":"2022-09","equity":651477.16},{"date":"2022-10","equity":724970.16},{"date":"2022-11","equity":734915.66},{"date":"2022-12","equity":677862.16},{"date":"2023-01","equity":631694.16},{"date":"2023-02","equity":661577.66},{"date":"2023-03","equity":590773.66},{"date":"2023-04","equity":615481.16},{"date":"2023-05","equity":769227.16},{"date":"2023-06","equity":1092856.66},{"date":"2023-07","equity":1093366.16},{"date":"2023-08","equity":1112856.66},{"date":"2023-09","equity":1120342.66},{"date":"2023-10","equity":1096742.16},{"date":"2023-11","equity":1345151.16},{"date":"2023-12","equity":1240279.66},{"date":"2024-01","equity":1384582.66},{"date":"2024-02","equity":1549916.66},{"date":"2024-03","equity":1564104.66},{"date":"2024-04","equity":1626596.66},{"date":"2024-05","equity":1577038.66},{"date":"2024-06","equity":1588739.66},{"date":"2024-07","equity":1539343.66},{"date":"2024-08","equity":1600918.66},{"date":"2024-09","equity":1511918.66},{"date":"2024-10","equity":1622648.16},{"date":"2024-11","equity":1720928.66},{"date":"2024-12","equity":1820311.66},{"date":"2025-01","equity":1831340.66},{"date":"2025-02","equity":1713074.66},{"date":"2025-03","equity":1585521.66},{"date":"2025-04","equity":1686621.16},{"date":"2025-05","equity":1832019.66},{"date":"2025-06","equity":1834805.66},{"date":"2025-07","equity":1973642.16},{"date":"2025-08","equity":2078255.16},{"date":"2025-09","equity":2129082.16},{"date":"2025-10","equity":2307358.16},{"date":"2025-11","equity":2420232.16},{"date":"2025-12","equity":2568186.16},{"date":"2026-01","equity":2555227.16},{"date":"2026-02","equity":2805985.16},{"date":"2026-03","equity":2581200.16},{"date":"2026-04","equity":2767280.16}]},"6758":{"monthly_matrix":{"2015":{"1":-25.806624360136933,"2":73.19166786948404,"3":-10.493951348944025,"4":24.03408969082675,"5":0.9922207406850961,"6":-9.070110198639252,"7":-1.3661895684881524,"8":-0.43364181350875686,"9":-9.431717381739354,"10":31.386753640646464,"11":7.0904240534855765,"12":-14.442320932241588},"2016":{"1":-35.487496331183465,"2":15.73025118985019,"3":17.802952961345294,"4":-39.150443249377574,"5":9.697218943166208,"6":18.692257978837567,"7":39.161558623261506,"8":18.764424847613324,"9":-14.848035902086195,"10":19.45625273652129,"11":11.685004319411057,"12":15.070254523308723},"2017":{"1":7.900426937564389,"2":22.125463330614696,"3":6.879462313809237,"4":0.8619822474888393,"5":19.778497596153848,"6":6.341517119355254,"7":6.108853115878262,"8":-7.816849378648695,"9":4.491166603172219,"10":19.21280111124227,"11":53.08649230286315,"12":-3.2484032532408995},"2018":{"1":5.618834215101305,"2":17.198969471690422,"3":-21.696387550437844,"4":16.316976304945054,"5":-15.801934103494162,"6":16.278414320054946,"7":23.284799348600618,"8":34.199676875858515,"9":26.53496300330529,"10":-21.97527595939217,"11":-19.725180476262018,"12":-9.195907505580356},"2019":{"1":20.066462053571428,"2":-4.378437889015282,"3":-30.39617415543441,"4":37.14153919932606,"5":-8.810152037903503,"6":15.918548744956215,"7":29.11984144273695,"8":-19.33656019273695,"9":1.2108081591260302,"10":27.099107303828983,"11":13.462855130709134,"12":12.563713995964973},"2020":{"1":8.446066196986607,"2":-40.798694625686814,"3":-37.41182085980426,"4":6.8229131342290525,"5":5.028908718234891,"6":19.198397337525755,"7":13.842762008499312,"8":32.92656357314561,"9":8.706617793827267,"10":9.482476632254464,"11":22.96985370342548,"12":12.30873065655048},"2021":{"1":3.3408791208791206,"2":20.983204788375687,"3":16.65120879120879,"4":12.481978021978021,"5":12.34306887448489,"6":10.602417582417582,"7":25.23054945054945,"8":1.6727472527472527,"9":4.117362637362637,"10":29.094285714285718,"11":17.49010989010989,"12":17.103956043956046},"2022":{"1":-31.06813186813187,"2":-16.963736263736266,"3":8.05076923076923,"4":-47.50637362637363,"5":23.46769230769231,"6":-33.87604395604396,"7":18.838241758241757,"8":-41.098901098901095,"9":-41.680531260731456,"10":15.334554295801855,"11":64.7802238045158,"12":-21.9378021978022},"2023":{"1":35.26923076923077,"2":9.582637362637362,"3":-0.46219780219780227,"4":7.034505494505494,"5":-11.793186813186814,"6":15.812087912087913,"7":6.683516483516483,"8":-36.027472527472526,"9":6.570769230769232,"10":6.185274725274725,"11":16.462637362637363,"12":-8.42923076923077},"2024":{"1":25.52813186813187,"2":-38.54131868131868,"3":-15.628571428571428,"4":12.520439560439561,"5":4.774285714285714,"6":7.997142857142856,"7":-8.601978021978022,"8":40.144835164835165,"9":-26.87824175824176,"10":-4.847472527472528,"11":35.42945054945055,"12":7.892967032967032},"2025":{"1":4.251648351648352,"2":-2.805054945054945,"3":-17.153626373626373,"4":3.1323076923076925,"5":-35.879120879120876,"6":27.57120879120879,"7":21.34021978021978,"8":-1.270989010989011,"9":18.100647428743134,"10":42.019560439560436,"11":29.495604395604396,"12":-7.397142857142858},"2026":{"1":-37.63208791208791,"2":10.197142857142858,"3":-57.46505494505495,"4":44.36197802197802,"5":0.0,"6":0.0,"7":0.0,"8":0.0,"9":0.0,"10":0.0,"11":0.0,"12":0.0}},"yearly":[{"year":2015,"n":243,"pnl":298710.23,"pnl_pct":65.65060039142986,"win_rate":51.028806584362144,"pf":1.1552156927271833},{"year":2016,"n":245,"pnl":348412.61,"pnl_pct":76.57420064066793,"win_rate":56.326530612244895,"pf":1.1704502225687812},{"year":2017,"n":253,"pnl":617532.42,"pnl_pct":135.72141004625257,"win_rate":55.33596837944664,"pf":1.58138904710984},{"year":2018,"n":261,"pnl":232222.66,"pnl_pct":51.03794794438959,"win_rate":52.87356321839081,"pf":1.1201464338655736},{"year":2019,"n":241,"pnl":426160.06,"pnl_pct":93.66155175512964,"win_rate":56.43153526970954,"pf":1.253320855618079},{"year":2020,"n":242,"pnl":279928.62,"pnl_pct":61.52277426918784,"win_rate":54.54545454545454,"pf":1.1587011557174725},{"year":2021,"n":245,"pnl":778558.55,"pnl_pct":171.11176816835507,"win_rate":54.285714285714285,"pf":1.5155800317892698},{"year":2022,"n":244,"pnl":-471653.18,"pnl_pct":-103.66003887469952,"win_rate":44.26229508196721,"pf":0.8377588860070845},{"year":2023,"n":246,"pnl":213343.0,"pnl_pct":46.88857142857143,"win_rate":50.0,"pf":1.139511357453754},{"year":2024,"n":245,"pnl":181043.0,"pnl_pct":39.78967032967033,"win_rate":48.97959183673469,"pf":1.0970808918059862},{"year":2025,"n":243,"pnl":370393.95,"pnl_pct":81.40526281335852,"win_rate":48.971193415637856,"pf":1.1632437677260434},{"year":2026,"n":79,"pnl":-184448.0,"pnl_pct":-40.53802197802197,"win_rate":44.303797468354425,"pf":0.8069434137631109}],"metrics":{"label":"6758","n_trades":2787,"n_wins":1446,"n_losses":1232,"win_rate":51.88374596340151,"avg_win":16967.880799310667,"avg_loss":-17406.94132690925,"biggest_win":237759.9093017578,"biggest_loss":-154560.0,"total_pnl":3090203.9210510254,"pf":1.1440966770866845,"rf":3.7122235019377463,"expectancy":1108.7922214033101,"cagr":19.89912664746818,"annual_return":60.035157503690684,"total_return_pct":679.1656969342913,"sharpe":0.7835333406712952,"years":11.312799452429843,"start":"2015-01-06","end":"2026-04-30","final_equity":3545203.9210510254,"initial_margin":455000.0,"max_dd_peak_pct":-23.81740230179812,"max_dd_peak_jpy":-832440.1586914062,"max_dd_peak_date":"2022-10-13","peak_peak_date":"2022-01-05","peak_peak_value":3495092.152130127,"recovery_peak_date":null,"recovery_peak_days":null,"max_dd_init_pct":-182.9538810310783,"max_dd_init_jpy":-832440.1586914062,"max_dd_init_date":"2022-10-13","max_dd_jpy":-832440.1586914062,"max_dd_jpy_pct_peak":-23.81740230179812,"max_dd_jpy_pct_init":-182.9538810310783,"max_dd_jpy_date":"2022-10-13","peak_jpy_date":"2022-01-05","peak_jpy_value":3495092.152130127,"recovery_jpy_date":null,"recovery_jpy_days":null,"min_equity":304603.2261657715,"min_equity_date":"2015-02-02","min_equity_loss_jpy":-150396.77383422852,"min_equity_loss_pct":-33.05423600752275,"max_win_streak":11,"max_loss_streak":8},"equity_curve":[{"date":"2015-01","equity":337579.86},{"date":"2015-02","equity":670601.95},{"date":"2015-03","equity":622854.47},{"date":"2015-04","equity":732209.58},{"date":"2015-05","equity":736724.18},{"date":"2015-06","equity":695455.18},{"date":"2015-07","equity":689239.02},{"date":"2015-08","equity":687265.95},{"date":"2015-09","equity":644351.63},{"date":"2015-10","equity":787161.36},{"date":"2015-11","equity":819422.79},{"date":"2015-12","equity":753710.23},{"date":"2016-01","equity":592242.12},{"date":"2016-02","equity":663814.77},{"date":"2016-03","equity":744818.2},{"date":"2016-04","equity":566683.69},{"date":"2016-05","equity":610806.03},{"date":"2016-06","equity":695855.81},{"date":"2016-07","equity":874040.9},{"date":"2016-08","equity":959419.03},{"date":"2016-09","equity":891860.47},{"date":"2016-10","equity":980386.42},{"date":"2016-11","equity":1033553.19},{"date":"2016-12","equity":1102122.84},{"date":"2017-01","equity":1138069.79},{"date":"2017-02","equity":1238740.65},{"date":"2017-03","equity":1270042.2},{"date":"2017-04","equity":1273964.22},{"date":"2017-05","equity":1363956.38},{"date":"2017-06","equity":1392810.29},{"date":"2017-07","equity":1420605.57},{"date":"2017-08","equity":1385038.9},{"date":"2017-09","equity":1405473.71},{"date":"2017-10","equity":1492891.96},{"date":"2017-11","equity":1734435.5},{"date":"2017-12","equity":1719655.26},{"date":"2018-01","equity":1745220.96},{"date":"2018-02","equity":1823476.27},{"date":"2018-03","equity":1724757.7},{"date":"2018-04","equity":1798999.95},{"date":"2018-05","equity":1727101.15},{"date":"2018-06","equity":1801167.93},{"date":"2018-07","equity":1907113.77},{"date":"2018-08","equity":2062722.3},{"date":"2018-09","equity":2183456.38},{"date":"2018-10","equity":2083468.87},{"date":"2018-11","equity":1993719.3},{"date":"2018-12","equity":1951877.92},{"date":"2019-01","equity":2043180.33},{"date":"2019-02","equity":2023258.43},{"date":"2019-03","equity":1884955.84},{"date":"2019-04","equity":2053949.84},{"date":"2019-05","equity":2013863.65},{"date":"2019-06","equity":2086293.05},{"date":"2019-07","equity":2218788.33},{"date":"2019-08","equity":2130806.98},{"date":"2019-09","equity":2136316.16},{"date":"2019-10","equity":2259617.09},{"date":"2019-11","equity":2320873.09},{"date":"2019-12","equity":2378037.98},{"date":"2020-01","equity":2416467.59},{"date":"2020-02","equity":2230833.52},{"date":"2020-03","equity":2060609.74},{"date":"2020-04","equity":2091653.99},{"date":"2020-05","equity":2114535.53},{"date":"2020-06","equity":2201888.24},{"date":"2020-07","equity":2264872.8},{"date":"2020-08","equity":2414688.67},{"date":"2020-09","equity":2454303.78},{"date":"2020-10","equity":2497449.05},{"date":"2020-11","equity":2601961.88},{"date":"2020-12","equity":2657966.61},{"date":"2021-01","equity":2673167.61},{"date":"2021-02","equity":2768641.19},{"date":"2021-03","equity":2844404.19},{"date":"2021-04","equity":2901197.19},{"date":"2021-05","equity":2957358.15},{"date":"2021-06","equity":3005599.15},{"date":"2021-07","equity":3120398.15},{"date":"2021-08","equity":3128009.15},{"date":"2021-09","equity":3146743.15},{"date":"2021-10","equity":3279122.15},{"date":"2021-11","equity":3358702.15},{"date":"2021-12","equity":3436525.15},{"date":"2022-01","equity":3295165.15},{"date":"2022-02","equity":3217980.15},{"date":"2022-03","equity":3254611.15},{"date":"2022-04","equity":3038457.15},{"date":"2022-05","equity":3145235.15},{"date":"2022-06","equity":2991099.15},{"date":"2022-07","equity":3076813.15},{"date":"2022-08","equity":2889813.15},{"date":"2022-09","equity":2700166.73},{"date":"2022-10","equity":2769938.96},{"date":"2022-11","equity":3064688.98},{"date":"2022-12","equity":2964871.98},{"date":"2023-01","equity":3125346.98},{"date":"2023-02","equity":3168947.98},{"date":"2023-03","equity":3166844.98},{"date":"2023-04","equity":3198851.98},{"date":"2023-05","equity":3145192.98},{"date":"2023-06","equity":3217137.98},{"date":"2023-07","equity":3247547.98},{"date":"2023-08","equity":3083622.98},{"date":"2023-09","equity":3113519.98},{"date":"2023-10","equity":3141662.98},{"date":"2023-11","equity":3216567.98},{"date":"2023-12","equity":3178214.98},{"date":"2024-01","equity":3294367.98},{"date":"2024-02","equity":3119004.98},{"date":"2024-03","equity":3047894.98},{"date":"2024-04","equity":3104862.98},{"date":"2024-05","equity":3126585.98},{"date":"2024-06","equity":3162972.98},{"date":"2024-07","equity":3123833.98},{"date":"2024-08","equity":3306492.98},{"date":"2024-09","equity":3184196.98},{"date":"2024-10","equity":3162140.98},{"date":"2024-11","equity":3323344.98},{"date":"2024-12","equity":3359257.98},{"date":"2025-01","equity":3378602.98},{"date":"2025-02","equity":3365839.98},{"date":"2025-03","equity":3287790.98},{"date":"2025-04","equity":3302042.98},{"date":"2025-05","equity":3138792.98},{"date":"2025-06","equity":3264241.98},{"date":"2025-07","equity":3361339.98},{"date":"2025-08","equity":3355556.98},{"date":"2025-09","equity":3437914.92},{"date":"2025-10","equity":3629103.92},{"date":"2025-11","equity":3763308.92},{"date":"2025-12","equity":3729651.92},{"date":"2026-01","equity":3558425.92},{"date":"2026-02","equity":3604822.92},{"date":"2026-03","equity":3343356.92},{"date":"2026-04","equity":3545203.92}]}},"combined":{"monthly_matrix":{"2015":{"1":-13.335817280863669,"2":16.58479266826923,"3":1.6575038633241759,"4":-11.047066019917583,"5":6.021186738066621,"6":-14.71055199927026,"7":0.8208705625429259,"8":-31.580152950077267,"9":-16.425997971754807,"10":10.172221894316621,"11":-3.60062022450206,"12":-6.147377688229739},"2016":{"1":-6.972274558937157,"2":-50.82392763242617,"3":0.7539000257554945,"4":-3.7376019488324177,"5":-7.7563879528674455,"6":-22.2955468079284,"7":16.26920471862122,"8":6.260920893071773,"9":-35.65682348901099,"10":10.961531593406594,"11":46.612640608902815,"12":18.99536347441621},"2017":{"1":-9.676762534340659,"2":-0.42784963083791205,"3":-14.405870589371567,"4":-0.7268366082160027,"5":-3.4111794675051508,"6":-1.97634516118647,"7":-0.8076220971411401,"8":0.6133202588427198,"9":16.490166820484202,"10":13.128334129249655,"11":16.33965570806147,"12":2.463272986778846},"2018":{"1":-4.30309562263908,"2":2.5465933261074865,"3":-9.918241758241757,"4":14.896158246050826,"5":-1.475670662345467,"6":8.949073365599244,"7":13.906906469994848,"8":21.195782323145604,"9":6.335567667196084,"10":-6.921022251674107,"11":6.3406956129807694,"12":-7.110941953554257},"2019":{"1":1.2164798141311814,"2":0.4667186426854396,"3":2.7606514262105084,"4":16.156523035070396,"5":-17.254252017513735,"6":7.945709483387706,"7":-1.7586907355339971,"8":-26.19034928206559,"9":1.049335213126717,"10":3.7364396516569363,"11":5.559444056919642,"12":9.369566958919986},"2020":{"1":-5.696317474029876,"2":-29.37044200184581,"3":-55.55439131181319,"4":-22.461075238238323,"5":8.02926025390625,"6":0.23870804000686816,"7":-7.394909775283311,"8":20.320176586109202,"9":-9.289625820956388,"10":-7.171542834606799,"11":37.57252154339801,"12":28.819918736049104},"2021":{"1":-13.688677240728023,"2":38.74613600510817,"3":34.525502044342375,"4":20.67525181361607,"5":22.026329654232484,"6":8.935509288075206,"7":4.792278744205014,"8":17.032479395604398,"9":-3.159700672862294,"10":10.46043956043956,"11":32.04923076923077,"12":17.910989010989013},"2022":{"1":6.068351648351649,"2":-24.091868131868132,"3":8.175604395604395,"4":-29.787142857142857,"5":1.1781318681318682,"6":-3.8915384615384614,"7":14.078351648351648,"8":-22.402967032967034,"9":-30.614835164835164,"10":16.152307692307694,"11":2.185824175824176,"12":-12.53923076923077},"2023":{"1":-10.146813186813187,"2":6.567802197802197,"3":-15.561318681318681,"4":5.4302197802197805,"5":33.79032967032967,"6":71.12736263736264,"7":0.11197802197802198,"8":4.283626373626373,"9":1.6452747252747253,"10":-5.186923076923077,"11":54.59538461538461,"12":-23.048681318681318},"2024":{"1":31.714945054945055,"2":36.33714285714286,"3":3.1182417582417585,"4":13.734505494505495,"5":-10.891868131868133,"6":2.571648351648352,"7":-10.856263736263736,"8":13.532967032967033,"9":-19.560439560439562,"10":24.336153846153845,"11":21.600109890109888,"12":21.842417582417582},"2025":{"1":2.423956043956044,"2":-25.99252747252747,"3":-28.033626373626376,"4":22.21967032967033,"5":31.955714285714286,"6":0.6123076923076923,"7":30.513516483516483,"8":22.99186813186813,"9":11.170769230769231,"10":39.18153846153846,"11":24.807472527472527,"12":32.51736263736264},"2026":{"1":-2.848131868131868,"2":55.111648351648356,"3":-49.403296703296704,"4":40.89670329670329,"5":0.0,"6":0.0,"7":0.0,"8":0.0,"9":0.0,"10":0.0,"11":0.0,"12":0.0}},"yearly":[{"year":2015,"n":243,"pnl":-280239.09,"pnl_pct":-61.59100840809582,"win_rate":48.971193415637856,"pf":0.813312346432612},{"year":2016,"n":245,"pnl":-124619.95,"pnl_pct":-27.389001075828467,"win_rate":46.53061224489796,"pf":0.9422734023492738},{"year":2017,"n":253,"pnl":80090.39,"pnl_pct":17.602283814817994,"win_rate":48.616600790513836,"pf":1.07634058661356},{"year":2018,"n":261,"pnl":202210.21,"pnl_pct":44.441804762620194,"win_rate":51.724137931034484,"pf":1.170695321603361},{"year":2019,"n":241,"pnl":13911.97,"pnl_pct":3.0575762469951924,"win_rate":57.676348547717836,"pf":1.0147997828473498},{"year":2020,"n":242,"pnl":-190907.62,"pnl_pct":-41.95771929730426,"win_rate":47.107438016528924,"pf":0.8915260361924889},{"year":2021,"n":245,"pnl":865891.25,"pnl_pct":190.30576837225274,"win_rate":58.77551020408164,"pf":1.9205224208388558},{"year":2022,"n":244,"pnl":-343475.0,"pnl_pct":-75.48901098901098,"win_rate":45.49180327868852,"pf":0.8194009089501382},{"year":2023,"n":246,"pnl":562417.5,"pnl_pct":123.60824175824176,"win_rate":57.3170731707317,"pf":1.467128631212009},{"year":2024,"n":245,"pnl":580032.0,"pnl_pct":127.47956043956043,"win_rate":56.734693877551024,"pf":1.3384292323710707},{"year":2025,"n":243,"pnl":747874.5,"pnl_pct":164.36802197802197,"win_rate":54.73251028806584,"pf":1.468491186440041},{"year":2026,"n":79,"pnl":199094.0,"pnl_pct":43.75692307692308,"win_rate":51.89873417721519,"pf":1.244263439494822}],"metrics":{"label":"7203","n_trades":2787,"n_wins":1453,"n_losses":1230,"win_rate":52.13491209185504,"avg_win":13129.876995341334,"avg_loss":-13630.43180417937,"biggest_win":201600.0,"biggest_loss":-101345.56811523438,"total_pnl":2312280.155090332,"pf":1.1379195165730314,"rf":2.8525275407202093,"expectancy":829.6663635056807,"cagr":17.302082360921855,"annual_return":44.92198794967946,"total_return_pct":508.1934406791938,"sharpe":0.4696200287759277,"years":11.312799452429843,"start":"2015-01-06","end":"2026-04-30","final_equity":2767280.155090332,"initial_margin":455000.0,"max_dd_peak_pct":-165.0026712916784,"max_dd_peak_jpy":-810607.4777832031,"max_dd_peak_date":"2016-06-28","peak_peak_date":"2015-03-03","peak_peak_value":491269.3057861328,"recovery_peak_date":null,"recovery_peak_days":null,"max_dd_init_pct":-178.15548962268198,"max_dd_init_jpy":-810607.4777832031,"max_dd_init_date":"2016-06-28","max_dd_jpy":-810607.4777832031,"max_dd_jpy_pct_peak":-165.0026712916784,"max_dd_jpy_pct_init":-178.15548962268198,"max_dd_jpy_date":"2016-06-28","peak_jpy_date":"2015-03-03","peak_jpy_value":491269.3057861328,"recovery_jpy_date":null,"recovery_jpy_days":null,"min_equity":-319338.1719970703,"min_equity_date":"2016-06-28","min_equity_loss_jpy":-774338.1719970703,"min_equity_loss_pct":-170.18421362572974,"max_win_streak":13,"max_loss_streak":10},"equity_curve":[{"date":"2015-01","equity":394322.03},{"date":"2015-02","equity":469782.84},{"date":"2015-03","equity":477324.48},{"date":"2015-04","equity":427060.33},{"date":"2015-05","equity":454456.73},{"date":"2015-06","equity":387523.72},{"date":"2015-07","equity":391258.68},{"date":"2015-08","equity":247568.98},{"date":"2015-09","equity":172830.69},{"date":"2015-10","equity":219114.3},{"date":"2015-11","equity":202731.48},{"date":"2015-12","equity":174760.91},{"date":"2016-01","equity":143037.06},{"date":"2016-02","equity":-88211.81},{"date":"2016-03","equity":-84781.56},{"date":"2016-04","equity":-101787.65},{"date":"2016-05","equity":-137079.22},{"date":"2016-06","equity":-238523.96},{"date":"2016-07","equity":-164499.07},{"date":"2016-08","equity":-136011.88},{"date":"2016-09","equity":-298250.43},{"date":"2016-10","equity":-248375.46},{"date":"2016-11","equity":-36287.95},{"date":"2016-12","equity":50140.96},{"date":"2017-01","equity":6111.69},{"date":"2017-02","equity":4164.97},{"date":"2017-03","equity":-61381.74},{"date":"2017-04","equity":-64688.85},{"date":"2017-05","equity":-80209.71},{"date":"2017-06","equity":-89202.08},{"date":"2017-07","equity":-92876.76},{"date":"2017-08","equity":-90086.16},{"date":"2017-09","equity":-15055.9},{"date":"2017-10","equity":44678.02},{"date":"2017-11","equity":119023.46},{"date":"2017-12","equity":130231.35},{"date":"2018-01","equity":110652.26},{"date":"2018-02","equity":122239.26},{"date":"2018-03","equity":77111.26},{"date":"2018-04","equity":144888.78},{"date":"2018-05","equity":138174.48},{"date":"2018-06","equity":178892.77},{"date":"2018-07","equity":242169.19},{"date":"2018-08","equity":338610.0},{"date":"2018-09","equity":367436.83},{"date":"2018-10","equity":335946.18},{"date":"2018-11","equity":364796.35},{"date":"2018-12","equity":332441.56},{"date":"2019-01","equity":337976.54},{"date":"2019-02","equity":340100.11},{"date":"2019-03","equity":352661.08},{"date":"2019-04","equity":426173.26},{"date":"2019-05","equity":347666.41},{"date":"2019-06","equity":383819.39},{"date":"2019-07","equity":375817.35},{"date":"2019-08","equity":256651.26},{"date":"2019-09","equity":261425.73},{"date":"2019-10","equity":278426.53},{"date":"2019-11","equity":303722.0},{"date":"2019-12","equity":346353.53},{"date":"2020-01","equity":320435.29},{"date":"2020-02","equity":186799.78},{"date":"2020-03","equity":-65972.7},{"date":"2020-04","equity":-168170.6},{"date":"2020-05","equity":-131637.46},{"date":"2020-06","equity":-130551.34},{"date":"2020-07","equity":-164198.18},{"date":"2020-08","equity":-71741.38},{"date":"2020-09","equity":-114009.17},{"date":"2020-10","equity":-146639.69},{"date":"2020-11","equity":24315.28},{"date":"2020-12","equity":155445.91},{"date":"2021-01","equity":93162.43},{"date":"2021-02","equity":269457.35},{"date":"2021-03","equity":426548.38},{"date":"2021-04","equity":520620.78},{"date":"2021-05","equity":620840.58},{"date":"2021-06","equity":661497.14},{"date":"2021-07","equity":683302.01},{"date":"2021-08","equity":760799.79},{"date":"2021-09","equity":746423.16},{"date":"2021-10","equity":794018.16},{"date":"2021-11","equity":939842.16},{"date":"2021-12","equity":1021337.16},{"date":"2022-01","equity":1048948.16},{"date":"2022-02","equity":939330.16},{"date":"2022-03","equity":976529.16},{"date":"2022-04","equity":840997.66},{"date":"2022-05","equity":846358.16},{"date":"2022-06","equity":828651.66},{"date":"2022-07","equity":892708.16},{"date":"2022-08","equity":790774.66},{"date":"2022-09","equity":651477.16},{"date":"2022-10","equity":724970.16},{"date":"2022-11","equity":734915.66},{"date":"2022-12","equity":677862.16},{"date":"2023-01","equity":631694.16},{"date":"2023-02","equity":661577.66},{"date":"2023-03","equity":590773.66},{"date":"2023-04","equity":615481.16},{"date":"2023-05","equity":769227.16},{"date":"2023-06","equity":1092856.66},{"date":"2023-07","equity":1093366.16},{"date":"2023-08","equity":1112856.66},{"date":"2023-09","equity":1120342.66},{"date":"2023-10","equity":1096742.16},{"date":"2023-11","equity":1345151.16},{"date":"2023-12","equity":1240279.66},{"date":"2024-01","equity":1384582.66},{"date":"2024-02","equity":1549916.66},{"date":"2024-03","equity":1564104.66},{"date":"2024-04","equity":1626596.66},{"date":"2024-05","equity":1577038.66},{"date":"2024-06","equity":1588739.66},{"date":"2024-07","equity":1539343.66},{"date":"2024-08","equity":1600918.66},{"date":"2024-09","equity":1511918.66},{"date":"2024-10","equity":1622648.16},{"date":"2024-11","equity":1720928.66},{"date":"2024-12","equity":1820311.66},{"date":"2025-01","equity":1831340.66},{"date":"2025-02","equity":1713074.66},{"date":"2025-03","equity":1585521.66},{"date":"2025-04","equity":1686621.16},{"date":"2025-05","equity":1832019.66},{"date":"2025-06","equity":1834805.66},{"date":"2025-07","equity":1973642.16},{"date":"2025-08","equity":2078255.16},{"date":"2025-09","equity":2129082.16},{"date":"2025-10","equity":2307358.16},{"date":"2025-11","equity":2420232.16},{"date":"2025-12","equity":2568186.16},{"date":"2026-01","equity":2555227.16},{"date":"2026-02","equity":2805985.16},{"date":"2026-03","equity":2581200.16},{"date":"2026-04","equity":2767280.16}]}}},"params":{"margin_per_stock":455000,"position_size":1500000,"leverage":3.3,"codes":["7203","6758","8035"]}};
+
+const STOCK_NAMES = {
+  '7203': 'トヨタ自動車',
+  '6758': 'ソニーグループ',
+  '8035': '東京エレクトロン',
+};
+const ORIGINAL_CODES = [...DATA.params.codes];
+const CUSTOM_CODES = new Set();
+const YAHOO_CODES = new Set(ORIGINAL_CODES);
+const API_BASE = location.protocol === 'file:' ? 'http://127.0.0.1:8765' : '';
+let selectedCodes = [...DATA.params.codes];
+let currentTab = 'combined';
+let currentPeriod = 'all';
+let perfChart = null;
+let combinedCache = {};
+
+const fmt = (v,d=0) => v==null?'-':Number(v).toLocaleString('ja-JP',{minimumFractionDigits:d,maximumFractionDigits:d});
+const fmtJPY = (v) => (v>=0?'+':'')+Math.round(v).toLocaleString('ja-JP')+'円';
+const fmtPct = (v,d=2) => (v>=0?'+':'')+Number(v).toFixed(d)+'%';
+const fmtPctP = (v,d=2) => Number(v).toFixed(d)+'%';
+const cls = v => v>0?'green':v<0?'red':'gray';
+
+function intensity(v, scale) {
+  if (v === 0 || v == null) return 'v0';
+  const abs = Math.abs(v);
+  const sign = v > 0 ? 'p' : 'n';
+  if (abs < scale*0.25) return `v${sign}1`;
+  if (abs < scale*0.5)  return `v${sign}2`;
+  if (abs < scale*1.0)  return `v${sign}3`;
+  return `v${sign}4`;
+}
+
+function grossParts(metrics) {
+  if (!Number.isFinite(metrics.pf) || metrics.pf >= 9999 || Math.abs(metrics.pf - 1) < 0.00001) {
+    return {profit: Math.max(metrics.total_pnl, 0), loss: Math.max(-metrics.total_pnl, 0)};
+  }
+  const loss = metrics.total_pnl / (metrics.pf - 1);
+  return {profit: Math.max(metrics.pf * loss, 0), loss: Math.max(loss, 0)};
+}
+
+function combineSelectedData(period) {
+  const cacheKey = `${period}:${selectedCodes.join(',')}`;
+  if (combinedCache[cacheKey]) return combinedCache[cacheKey];
+
+  const stocks = selectedCodes.map(code => DATA.periods[period].per_stock[code]);
+  const margin = DATA.params.margin_per_stock * selectedCodes.length;
+  const dateSet = new Set(stocks.flatMap(s => s.equity_curve.map(p => p.date)));
+  const dates = [...dateSet].sort();
+  const equityMaps = stocks.map(s => new Map(s.equity_curve.map(p => [p.date, p.equity])));
+  const lastValues = stocks.map(() => DATA.params.margin_per_stock);
+  const equity_curve = dates.map(date => {
+    let equity = 0;
+    equityMaps.forEach((map, i) => {
+      if (map.has(date)) lastValues[i] = map.get(date);
+      equity += lastValues[i];
+    });
+    return {date, equity};
+  });
+
+  const yearlyMap = new Map();
+  stocks.forEach(s => s.yearly.forEach(row => {
+    const y = yearlyMap.get(row.year) || {year:row.year,n:0,pnl:0,wins:0,profit:0,loss:0};
+    const parts = grossParts({total_pnl:row.pnl,pf:row.pf});
+    y.n += row.n; y.pnl += row.pnl; y.wins += row.n * row.win_rate / 100;
+    y.profit += parts.profit; y.loss += parts.loss;
+    yearlyMap.set(row.year, y);
+  }));
+  const yearly = [...yearlyMap.values()].sort((a,b)=>a.year-b.year).map(y => ({
+    year:y.year, n:y.n, pnl:y.pnl, pnl_pct:y.pnl/margin*100,
+    win_rate:y.n ? y.wins/y.n*100 : 0, pf:y.loss ? y.profit/y.loss : 9999.99,
+  }));
+
+  const monthly_matrix = {};
+  stocks.forEach(s => Object.entries(s.monthly_matrix).forEach(([year, months]) => {
+    monthly_matrix[year] ||= {};
+    for (let month=1; month<=12; month++) {
+      monthly_matrix[year][month] = (monthly_matrix[year][month] || 0) + (months[month] || 0) / selectedCodes.length;
+    }
+  }));
+
+  const sourceMetrics = stocks.map(s => s.metrics);
+  const totalParts = sourceMetrics.map(grossParts).reduce((a,p)=>({profit:a.profit+p.profit,loss:a.loss+p.loss}),{profit:0,loss:0});
+  const total_pnl = sourceMetrics.reduce((a,m)=>a+m.total_pnl,0);
+  const n_trades = sourceMetrics.reduce((a,m)=>a+m.n_trades,0);
+  const n_wins = sourceMetrics.reduce((a,m)=>a+m.n_wins,0);
+  const n_losses = sourceMetrics.reduce((a,m)=>a+m.n_losses,0);
+  const start = sourceMetrics.map(m=>m.start).sort()[0];
+  const end = sourceMetrics.map(m=>m.end).sort().at(-1);
+  const years = (new Date(end) - new Date(start)) / (365.25*86400000);
+  const final_equity = margin + total_pnl;
+
+  let peak = margin, maxDdJpy = 0, maxDdDate = start, peakDate = start, maxDdPeakPct = 0;
+  let minEquity = margin, minEquityDate = start;
+  equity_curve.forEach(p => {
+    if (p.equity > peak) { peak = p.equity; peakDate = `${p.date}-01`; }
+    const dd = p.equity - peak;
+    if (dd < maxDdJpy) { maxDdJpy = dd; maxDdDate = `${p.date}-01`; maxDdPeakPct = dd/peak*100; }
+    if (p.equity < minEquity) { minEquity = p.equity; minEquityDate = `${p.date}-01`; }
+  });
+  const yearlyReturns = yearly.map(y=>y.pnl/margin);
+  const meanReturn = yearlyReturns.reduce((a,v)=>a+v,0)/(yearlyReturns.length||1);
+  const variance = yearlyReturns.reduce((a,v)=>a+(v-meanReturn)**2,0)/Math.max(yearlyReturns.length-1,1);
+  const cagr = final_equity > 0 && years > 0 ? ((final_equity/margin)**(1/years)-1)*100 : 0;
+  const metrics = {
+    label:'選択合算', n_trades, n_wins, n_losses, win_rate:n_trades?n_wins/n_trades*100:0,
+    avg_win:n_wins?totalParts.profit/n_wins:0, avg_loss:n_losses?-totalParts.loss/n_losses:0,
+    biggest_win:Math.max(...sourceMetrics.map(m=>m.biggest_win)), biggest_loss:Math.min(...sourceMetrics.map(m=>m.biggest_loss)),
+    total_pnl, pf:totalParts.loss?totalParts.profit/totalParts.loss:9999.99,
+    rf:Math.abs(maxDdJpy)?total_pnl/Math.abs(maxDdJpy):9999.99,
+    expectancy:n_trades?total_pnl/n_trades:0, cagr, annual_return:years?total_pnl/margin/years*100:0,
+    total_return_pct:total_pnl/margin*100, sharpe:variance?meanReturn/Math.sqrt(variance):0,
+    years,start,end,final_equity,initial_margin:margin,
+    max_dd_peak_pct:maxDdPeakPct,max_dd_peak_jpy:maxDdJpy,max_dd_peak_date:maxDdDate,
+    peak_peak_date:peakDate,peak_peak_value:peak,recovery_peak_date:null,recovery_peak_days:null,
+    max_dd_init_pct:maxDdJpy/margin*100,max_dd_init_jpy:maxDdJpy,max_dd_init_date:maxDdDate,
+    max_dd_jpy:maxDdJpy,max_dd_jpy_pct_peak:maxDdPeakPct,max_dd_jpy_pct_init:maxDdJpy/margin*100,
+    max_dd_jpy_date:maxDdDate,peak_jpy_date:peakDate,peak_jpy_value:peak,recovery_jpy_date:null,recovery_jpy_days:null,
+    min_equity:minEquity,min_equity_date:minEquityDate,min_equity_loss_jpy:minEquity-margin,
+    min_equity_loss_pct:(minEquity-margin)/margin*100,
+    max_win_streak:Math.max(...sourceMetrics.map(m=>m.max_win_streak)),
+    max_loss_streak:Math.max(...sourceMetrics.map(m=>m.max_loss_streak)),
+  };
+  combinedCache[cacheKey] = {metrics,equity_curve,monthly_matrix,yearly};
+  return combinedCache[cacheKey];
+}
+
+function getCurrentData() {
+  const periodData = DATA.periods[currentPeriod];
+  if (currentTab === 'combined') return combineSelectedData(currentPeriod);
+  return periodData.per_stock[currentTab];
+}
+
+function getCurrentMargin() {
+  const params = DATA.params;
+  if (currentTab === 'combined') return params.margin_per_stock * selectedCodes.length;
+  return params.margin_per_stock;
+}
+
+function renderKPI() {
+  const m = getCurrentData().metrics;
+  const margin = getCurrentMargin();
+  const cards = [
+    {label:'純利益', value:fmtJPY(m.total_pnl), sub:`累計利益率 ${fmtPct(m.total_return_pct,1)}`, color:m.total_pnl>=0?'#3fb950':'#f85149', cls:m.total_pnl>=0?'green':'red'},
+    {label:'CAGR', value:fmtPct(m.cagr,2), sub:`期間 ${m.years.toFixed(1)}年`, color:'#39d353', cls:'cyan'},
+    {label:'年利(単純)', value:fmtPct(m.annual_return,1), sub:`年平均 ${fmtJPY(m.total_pnl/m.years)}`, color:'#58a6ff', cls:'blue'},
+    {label:'プロフィットファクター', value:m.pf.toFixed(3), sub:`勝${m.n_wins} / 負${m.n_losses}`, color:'#a371f7', cls:'purple'},
+    {label:'最大DD% (証拠金比)', value:fmtPctP(m.max_dd_init_pct,1), sub:`Peak比 ${fmtPctP(m.max_dd_peak_pct,1)} / ${m.max_dd_init_date}`, color:'#f85149', cls:'red'},
+    {label:'リカバリーF', value:m.rf.toFixed(2), sub:`総利益 / |最大DD金額|`, color:'#e3b341', cls:'orange'},
+    {label:'シャープレシオ', value:m.sharpe.toFixed(2), sub:`年次リターンベース`, color:'#e6edf3', cls:'white'},
+  ];
+  document.getElementById('kpi-area').innerHTML = cards.map(c => `
+    <div class="kpi-card" style="--ac:${c.color}">
+      <div class="kpi-label">${c.label}</div>
+      <div class="kpi-value ${c.cls}">${c.value}</div>
+      <div class="kpi-sub">${c.sub}</div>
+    </div>
+  `).join('');
+  document.getElementById('margin-display').textContent = margin.toLocaleString('ja-JP');
+}
+
+function renderStats() {
+  const m = getCurrentData().metrics;
+  const rows = [
+    ['初期証拠金', '¥' + m.initial_margin.toLocaleString('ja-JP'), 'gray'],
+    ['最終評価額', '¥' + Math.round(m.final_equity).toLocaleString('ja-JP'), m.final_equity>=m.initial_margin?'green':'red'],
+    ['総トレード数', m.n_trades.toLocaleString('ja-JP'), 'white'],
+    ['勝率', fmtPctP(m.win_rate,2), m.win_rate>=50?'green':'orange'],
+    ['平均利益', '¥' + Math.round(m.avg_win).toLocaleString('ja-JP'), 'green'],
+    ['平均損失', '¥' + Math.round(m.avg_loss).toLocaleString('ja-JP'), 'red'],
+    ['ペイオフレシオ', (Math.abs(m.avg_win/m.avg_loss)).toFixed(3), 'blue'],
+    ['期待値/トレード', '¥' + Math.round(m.expectancy).toLocaleString('ja-JP'), m.expectancy>=0?'green':'red'],
+    ['最大利益(単発)', '¥' + Math.round(m.biggest_win).toLocaleString('ja-JP'), 'green'],
+    ['最大損失(単発)', '¥' + Math.round(m.biggest_loss).toLocaleString('ja-JP'), 'red'],
+    ['最大連勝', m.max_win_streak + '回', 'green'],
+    ['最大連敗', m.max_loss_streak + '回', 'red'],
+  ];
+  document.getElementById('detail-stats').innerHTML = rows.map(r => `
+    <div class="stat-row">
+      <span class="stat-label">${r[0]}</span>
+      <span class="stat-value ${r[2]}">${r[1]}</span>
+    </div>
+  `).join('');
+}
+
+function renderChart() {
+  const ec = getCurrentData().equity_curve;
+  const labels = ec.map(p => p.date);
+  const equity = ec.map(p => p.equity);
+  const margin = getCurrentMargin();
+  const pnl = equity.map(v => v - margin);
+  
+  if (perfChart) perfChart.destroy();
+  const ctx = document.getElementById('perfChart').getContext('2d');
+  
+  // グラデーション
+  const grad = ctx.createLinearGradient(0,0,0,260);
+  grad.addColorStop(0,'rgba(63,185,80,0.30)');
+  grad.addColorStop(1,'rgba(63,185,80,0.00)');
+  
+  perfChart = new Chart(ctx, {
+    type:'line',
+    data:{
+      labels: labels,
+      datasets:[{
+        label:'累積損益(円)',
+        data: pnl,
+        borderColor:'#3fb950',
+        backgroundColor:grad,
+        borderWidth:2,
+        fill:true,
+        tension:0.15,
+        pointRadius:0,
+        pointHoverRadius:4,
+      }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          backgroundColor:'#161b22',
+          borderColor:'#30363d',
+          borderWidth:1,
+          titleColor:'#e6edf3',
+          bodyColor:'#e6edf3',
+          callbacks:{
+            label:(c)=>{
+              const v = c.parsed.y;
+              const e = v + margin;
+              return [`累積損益: ${(v>=0?'+':'')}${Math.round(v).toLocaleString('ja-JP')}円`,
+                      `評価額: ${Math.round(e).toLocaleString('ja-JP')}円`];
+            }
+          }
+        }
+      },
+      scales:{
+        x:{
+          ticks:{color:'#8b949e',font:{size:10},maxTicksLimit:12,autoSkip:true},
+          grid:{color:'rgba(48,54,61,0.4)',drawBorder:false}
+        },
+        y:{
+          ticks:{
+            color:'#8b949e',font:{size:10},
+            callback:(v)=>(v>=0?'+':'')+(v/10000).toFixed(0)+'万'
+          },
+          grid:{color:'rgba(48,54,61,0.4)',drawBorder:false}
+        }
+      }
+    }
+  });
+}
+
+function renderYearly() {
+  const yr = getCurrentData().yearly;
+  const margin = getCurrentMargin();
+  let html = `<thead><tr><th>年</th><th>取引数</th><th>勝率</th><th>PF</th><th>損益(円)</th><th>収益率</th></tr></thead><tbody>`;
+  let totN=0, totPnL=0;
+  for (const r of yr) {
+    const pf = (r.pf >= 9999.99) ? '∞' : r.pf.toFixed(2);
+    html += `<tr>
+      <td><b>${r.year}</b></td>
+      <td>${r.n}</td>
+      <td class="${r.win_rate>=50?'green':'orange'}">${r.win_rate.toFixed(1)}%</td>
+      <td class="${r.pf>=1.2?'green':r.pf>=1?'orange':'red'}">${pf}</td>
+      <td class="${r.pnl>=0?'green':'red'}">${(r.pnl>=0?'+':'')}${Math.round(r.pnl).toLocaleString('ja-JP')}</td>
+      <td class="${r.pnl_pct>=0?'green':'red'}">${fmtPct(r.pnl_pct,1)}</td>
+    </tr>`;
+    totN += r.n; totPnL += r.pnl;
+  }
+  html += `<tr class="tr-total">
+    <td>合計</td>
+    <td>${totN.toLocaleString('ja-JP')}</td>
+    <td>-</td>
+    <td>-</td>
+    <td class="${totPnL>=0?'green':'red'}">${(totPnL>=0?'+':'')}${Math.round(totPnL).toLocaleString('ja-JP')}</td>
+    <td class="${totPnL>=0?'green':'red'}">${fmtPct(totPnL/margin*100,1)}</td>
+  </tr></tbody>`;
+  document.getElementById('yearly-table').innerHTML = html;
+}
+
+function renderDD() {
+  const m = getCurrentData().metrics;
+  // 証拠金維持率の評価
+  const minEqRatio = m.min_equity / m.initial_margin;
+  let lcStatus = '', lcClass = '';
+  if (minEqRatio >= 0.5) { lcStatus = '安全圏'; lcClass = 'badge-green'; }
+  else if (minEqRatio >= 0.3) { lcStatus = '要注意'; lcClass = 'badge-orange'; }
+  else if (minEqRatio >= 0) { lcStatus = '危険水域'; lcClass = 'badge-red'; }
+  else { lcStatus = '証拠金割れ'; lcClass = 'badge-red'; }
+
+  const html = `
+    <div class="dd-grid">
+      <div class="dd-card">
+        <div class="dd-card-title" style="color:#f85149">💴 最大DD (金額ベース・推奨)</div>
+        <div class="stat-row"><span class="stat-label">DD金額</span><span class="stat-value red">${fmtJPY(m.max_dd_jpy)}</span></div>
+        <div class="stat-row"><span class="stat-label">証拠金比</span><span class="stat-value red">${fmtPctP(m.max_dd_jpy_pct_init,2)}</span></div>
+        <div class="stat-row"><span class="stat-label">Peak比</span><span class="stat-value gray">${fmtPctP(m.max_dd_jpy_pct_peak,2)}</span></div>
+        <div class="stat-row"><span class="stat-label">ピーク日</span><span class="stat-value">${m.peak_jpy_date}</span></div>
+        <div class="stat-row"><span class="stat-label">最低日</span><span class="stat-value">${m.max_dd_jpy_date}</span></div>
+        <div class="stat-row"><span class="stat-label">回復日</span><span class="stat-value">${m.recovery_jpy_date || '<span class="orange">未回復</span>'}</span></div>
+        <div class="stat-row"><span class="stat-label">回復日数</span><span class="stat-value">${m.recovery_jpy_days != null ? m.recovery_jpy_days+'日' : '-'}</span></div>
+      </div>
+      <div class="dd-card">
+        <div class="dd-card-title" style="color:#e3b341">⚠️ 証拠金維持率(最低Equity)</div>
+        <div class="stat-row"><span class="stat-label">最低Equity</span><span class="stat-value ${m.min_equity>=m.initial_margin?'green':'red'}">¥${Math.round(m.min_equity).toLocaleString('ja-JP')}</span></div>
+        <div class="stat-row"><span class="stat-label">証拠金維持率</span><span class="stat-value ${minEqRatio>=0.5?'green':minEqRatio>=0.3?'orange':'red'}">${(minEqRatio*100).toFixed(1)}%</span></div>
+        <div class="stat-row"><span class="stat-label">証拠金からの目減り</span><span class="stat-value ${m.min_equity_loss_pct>=0?'green':'red'}">${fmtPctP(m.min_equity_loss_pct,2)}</span></div>
+        <div class="stat-row"><span class="stat-label">発生日</span><span class="stat-value">${m.min_equity_date}</span></div>
+        <div class="stat-row"><span class="stat-label">運用判定</span><span class="stat-value"><span class="badge ${lcClass}">${lcStatus}</span></span></div>
+        <div class="stat-row"><span class="stat-label">Peak比 max DD%</span><span class="stat-value gray">${fmtPctP(m.max_dd_peak_pct,2)} (${m.max_dd_peak_date})</span></div>
+      </div>
+    </div>
+    <div class="note" style="border-left-color:#e3b341;margin-top:10px">
+      💡 <b>3つのDD指標の使い分け:</b><br>
+      ・<b>金額ベースDD</b>: 実損額(¥)。実運用で最も重要。証拠金比%は「初期証拠金に対する含み損ピーク幅」。<br>
+      ・<b>Peak比DD%</b>: ピーク評価額からの下落率。長期運用の安定性指標(資産が大きく増えた後の下落耐性)。<br>
+      ・<b>最低Equity / 維持率</b>: 元手45.5万円が最悪時にいくらまで減ったか。ロスカットリスクの直接指標。
+    </div>
+  `;
+  document.getElementById('dd-area').innerHTML = html;
+}
+
+function renderRanking() {
+  // 銘柄別 PF ランキング (現在の期間で集計)
+  const ps = DATA.periods[currentPeriod].per_stock;
+  const arr = Object.entries(ps).filter(([code]) => selectedCodes.includes(code)).map(([code, d]) => ({
+    code,
+    pf: d.metrics.pf,
+    cagr: d.metrics.cagr,
+    mdd: d.metrics.max_dd_init_pct,
+    dd_jpy: d.metrics.max_dd_jpy,
+    pnl: d.metrics.total_pnl,
+  })).sort((a,b)=>b.pf-a.pf);
+  
+  const maxPF = Math.max(...arr.map(x=>x.pf));
+  const medals = ['gold','silver','bronze'];
+  
+  const html = arr.map((r,i) => `
+    <div class="rank-row">
+      <div class="rank-num ${medals[i]||''}">${i+1}</div>
+      <div class="rank-code">${r.code}</div>
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:#8b949e;margin-bottom:3px">
+          <span>CAGR ${fmtPct(r.cagr,1)}</span>
+          <span>DD金額 ${(r.dd_jpy/10000).toFixed(0)}万</span>
+        </div>
+        <div class="rank-bar"><div class="rank-bar-fill" style="width:${r.pf/maxPF*100}%"></div></div>
+      </div>
+      <div class="rank-pf ${r.pf>=1.2?'green':r.pf>=1?'orange':'red'}">PF ${r.pf.toFixed(3)}</div>
+    </div>
+  `).join('');
+  document.getElementById('rank-list').innerHTML = html;
+}
+
+function renderStockControls() {
+  const ps = DATA.periods[currentPeriod].per_stock;
+  document.getElementById('stock-selector').innerHTML = DATA.params.codes.map(code => {
+    const selected = selectedCodes.includes(code);
+    return `<label class="stock-choice ${selected?'selected':''}">
+      <input type="checkbox" value="${code}" ${selected?'checked':''} onchange="toggleStock('${code}',this.checked)">
+      <span class="choice-code">${code}</span>
+      <span class="choice-name">${STOCK_NAMES[code]}</span>
+      <span class="choice-kpi">${YAHOO_CODES.has(code)?'Yahoo実データ / ':''}PF ${ps[code].metrics.pf.toFixed(2)}</span>
+      ${CUSTOM_CODES.has(code)?`<button class="remove-choice" type="button" title="候補から削除" onclick="event.preventDefault();event.stopPropagation();removeCustomStock('${code}')">×</button>`:''}
+    </label>`;
+  }).join('');
+  document.getElementById('stock-tabs').innerHTML = `
+    <button class="tab-btn ${currentTab==='combined'?'active':''}" data-tab="combined" onclick="switchTab('combined',this)">📊 ${selectedCodes.length}銘柄ポートフォリオ</button>
+    ${selectedCodes.map(code => `<button class="tab-btn ${currentTab===code?'active':''}" data-tab="${code}" onclick="switchTab('${code}',this)"><span class="code">${code}</span><span class="stock-name">${STOCK_NAMES[code]}</span></button>`).join('')}
+  `;
+  const summary = selectedCodes.join(' + ');
+  document.getElementById('selection-summary').textContent = summary;
+  document.getElementById('header-target').textContent = `TSE ${selectedCodes.join(' / ')}`;
+  document.getElementById('selector-status').textContent = `${selectedCodes.length}銘柄を選択中。チェックを外すとポートフォリオを即時再集計します。`;
+}
+
+function setAddMessage(message, type='') {
+  const el = document.getElementById('add-stock-message');
+  el.textContent = message;
+  el.className = `form-message ${type}`;
+}
+
+async function searchYahooStocks() {
+  const query = document.getElementById('stock-search-query').value.trim();
+  if (!query) {
+    setAddMessage('銘柄名または証券コードを入力してください。', 'error');
+    return;
+  }
+  setAddMessage(`「${query}」を検索中...`);
+  try {
+    const response = await fetch(`${API_BASE}/api/search?q=${encodeURIComponent(query)}`);
+    if (!response.ok) throw new Error('検索APIに接続できません');
+    const payload = await response.json();
+    const select = document.getElementById('stock-search-results');
+    select.innerHTML = payload.results.length
+      ? payload.results.map(r=>`<option value="${r.code}" data-name="${r.name}">${r.code}｜${r.name}</option>`).join('')
+      : '<option value="">該当する銘柄がありません</option>';
+    setAddMessage(payload.results.length ? `${payload.results.length}件見つかりました。銘柄を選択して実データを追加してください。` : '該当する銘柄がありません。', payload.results.length?'success':'error');
+  } catch (error) {
+    setAddMessage('ローカルAPIに接続できません。gap_up_scanner.py --prototype-api を起動してください。', 'error');
+  }
+}
+
+function selectSearchResult() {
+  const select = document.getElementById('stock-search-results');
+  if (select.value) setAddMessage(`${select.value} ${select.selectedOptions[0].dataset.name} を選択中。Yahoo実データを読み込めます。`);
+}
+
+async function addYahooStock() {
+  const select = document.getElementById('stock-search-results');
+  const code = select.value;
+  if (!code) {
+    setAddMessage('先に銘柄を検索し、検索結果から選択してください。', 'error');
+    return;
+  }
+  const name = select.selectedOptions[0].dataset.name || `${code} 銘柄`;
+  setAddMessage(`${code} ${name} のYahoo Financeデータを読み込み中...`);
+  try {
+    const response = await fetch(`${API_BASE}/api/analyze?code=${code}`);
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || 'データ取得に失敗しました');
+    for (const period of Object.keys(DATA.periods)) {
+      DATA.periods[period].per_stock[code] = structuredClone(payload);
+    }
+    STOCK_NAMES[code] = payload.name || name;
+    if (!DATA.params.codes.includes(code)) DATA.params.codes.push(code);
+    if (!selectedCodes.includes(code)) selectedCodes.push(code);
+    CUSTOM_CODES.add(code);
+    YAHOO_CODES.add(code);
+    currentTab = code;
+    combinedCache = {};
+    setAddMessage(`${code} ${STOCK_NAMES[code]} を追加しました。出典: ${payload.source}`, 'success');
+    renderStockControls();
+    document.getElementById('rank-section').style.display = 'none';
+    render();
+  } catch (error) {
+    setAddMessage(`Yahoo実データを追加できませんでした: ${error.message}`, 'error');
+  }
+}
+
+function removeCustomStock(code) {
+  if (!CUSTOM_CODES.has(code)) return;
+  CUSTOM_CODES.delete(code);
+  YAHOO_CODES.delete(code);
+  DATA.params.codes = DATA.params.codes.filter(c => c !== code);
+  selectedCodes = selectedCodes.filter(c => c !== code);
+  for (const period of Object.keys(DATA.periods)) delete DATA.periods[period].per_stock[code];
+  delete STOCK_NAMES[code];
+  if (!selectedCodes.length) selectedCodes = [ORIGINAL_CODES[0]];
+  if (currentTab === code) currentTab = 'combined';
+  combinedCache = {};
+  setAddMessage(`${code} を候補から削除しました。`);
+  renderStockControls();
+  document.getElementById('rank-section').style.display = currentTab==='combined' ? 'block' : 'none';
+  render();
+}
+
+function toggleStock(code, checked) {
+  if (!checked && selectedCodes.length === 1) {
+    renderStockControls();
+    return;
+  }
+  selectedCodes = checked
+    ? DATA.params.codes.filter(c => selectedCodes.includes(c) || c === code)
+    : selectedCodes.filter(c => c !== code);
+  if (currentTab !== 'combined' && !selectedCodes.includes(currentTab)) currentTab = 'combined';
+  combinedCache = {};
+  renderStockControls();
+  document.getElementById('rank-section').style.display = currentTab==='combined' ? 'block' : 'none';
+  render();
+}
+
+function selectAllStocks() {
+  selectedCodes = [...DATA.params.codes];
+  combinedCache = {};
+  renderStockControls();
+  render();
+}
+
+function selectTopPF() {
+  selectedCodes = Object.entries(DATA.periods[currentPeriod].per_stock)
+    .sort((a,b)=>b[1].metrics.pf-a[1].metrics.pf).slice(0,2).map(([code])=>code);
+  if (currentTab !== 'combined' && !selectedCodes.includes(currentTab)) currentTab = 'combined';
+  combinedCache = {};
+  renderStockControls();
+  document.getElementById('rank-section').style.display = currentTab==='combined' ? 'block' : 'none';
+  render();
+}
+
+function renderMatrix() {
+  const mat = getCurrentData().monthly_matrix;
+  const years = Object.keys(mat).sort();
+  const months = ['1','2','3','4','5','6','7','8','9','10','11','12'];
+  
+  // スケール基準値: 全データの絶対値の中央値*4
+  const allVals = [];
+  years.forEach(y => months.forEach(m => allVals.push(mat[y][m])));
+  const sorted = allVals.map(Math.abs).sort((a,b)=>b-a);
+  const scale = sorted[Math.floor(sorted.length*0.25)] || 5;
+  
+  let html = `<thead><tr><th>年</th>${months.map(m=>`<th>${m}月</th>`).join('')}<th>合計</th></tr></thead><tbody>`;
+  for (const y of years) {
+    const row = mat[y];
+    let sum = 0;
+    let cells = months.map(m => {
+      const v = row[m];
+      sum += v;
+      const c = intensity(v, scale);
+      const txt = v === 0 ? '-' : (v>0?'+':'')+v.toFixed(1);
+      return `<td class="${c}">${txt}</td>`;
+    }).join('');
+    const sumCls = sum>0?'vp4':sum<0?'vn4':'v0';
+    cells += `<td class="tot ${sumCls}">${sum===0?'-':(sum>0?'+':'')+sum.toFixed(1)}</td>`;
+    html += `<tr><td>${y}</td>${cells}</tr>`;
+  }
+  html += `</tbody>`;
+  document.getElementById('matrix-table').innerHTML = html;
+}
+
+function render() {
+  renderKPI();
+  renderStats();
+  renderChart();
+  renderYearly();
+  renderDD();
+  renderRanking();
+  renderMatrix();
+}
+
+function switchTab(tab, btn) {
+  currentTab = tab;
+  document.querySelectorAll('#stock-tabs .tab-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  // ランキングは合算タブ時のみ表示
+  document.getElementById('rank-section').style.display = (tab==='combined')?'block':'none';
+  render();
+}
+
+function switchPeriod(p, btn) {
+  currentPeriod = p;
+  document.querySelectorAll('.period-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  combinedCache = {};
+  renderStockControls();
+  render();
+}
+
+// 初期描画
+renderStockControls();
+render();
+</script>
+</body>
+</html>
+
+
