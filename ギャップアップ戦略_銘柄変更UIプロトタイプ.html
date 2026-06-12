@@ -227,7 +227,7 @@ tr:hover td{background:rgba(56,139,253,0.04)}
   </div>
   <div class="technical-panel" id="technical-panel">
     <div class="technical-head">
-      <div class="technical-title">日足・MACD判断（12・26・9）</div>
+      <div class="technical-title">陽線・陰線 × 短期EMA戦略 結果</div>
       <div class="technical-date" id="technical-date"></div>
     </div>
     <div class="technical-grid" id="technical-grid">
@@ -443,7 +443,7 @@ async function renderTechnical() {
   const date = document.getElementById('technical-date');
   if (currentTab === 'combined') {
     date.textContent = '';
-    grid.innerHTML = '<div class="technical-card neutral"><div class="technical-label">判断対象</div><div class="technical-value">個別銘柄を選択</div><div class="technical-sub">上部の銘柄タブを選ぶと最新の日足とMACDを表示します。</div></div>';
+    grid.innerHTML = '<div class="technical-card neutral"><div class="technical-label">判断対象</div><div class="technical-value">個別銘柄を選択</div><div class="technical-sub">上部の銘柄タブを選ぶと新戦略の計算結果を表示します。</div></div>';
     return;
   }
 
@@ -462,25 +462,25 @@ async function renderTechnical() {
     const t = technicalCache[code];
     date.textContent = `${code} ${STOCK_NAMES[code] || ''} / ${t.date}`;
     grid.innerHTML = `
-      <div class="technical-card ${t.candle_direction}">
-        <div class="technical-label">最新日足</div><div class="technical-value">${t.candle}</div>
-        <div class="technical-sub">始値 ${fmt(t.open,2)} / 終値 ${fmt(t.close,2)}</div>
+      <div class="technical-card ${t.latest_direction}">
+        <div class="technical-label">最新の15:30判断</div><div class="technical-value">${t.latest_action}</div>
+        <div class="technical-sub">${t.latest_reason}<br>${t.exit_rule}</div>
       </div>
-      <div class="technical-card ${t.macd_direction}">
-        <div class="technical-label">MACD方向</div><div class="technical-value">${t.macd_label}</div>
-        <div class="technical-sub">MACD ${fmt(t.macd,4)} / Signal ${fmt(t.signal,4)}</div>
+      <div class="technical-card ${t.net_profit>=0?'bullish':'bearish'}">
+        <div class="technical-label">バックテスト純利益</div><div class="technical-value">${fmtJPY(t.net_profit)}</div>
+        <div class="technical-sub">EMA${t.ema_fast}: 前日 ${fmt(t.previous_ema,4)} / 当日 ${fmt(t.current_ema,4)}</div>
       </div>
-      <div class="technical-card ${t.histogram>=0?'bullish':'bearish'}">
-        <div class="technical-label">ヒストグラム</div><div class="technical-value">${fmt(t.histogram,4)}</div>
-        <div class="technical-sub">勢いは前日比で${t.histogram_trend}</div>
+      <div class="technical-card ${t.pf>=1?'bullish':'bearish'}">
+        <div class="technical-label">PF・勝率</div><div class="technical-value">PF ${fmt(t.pf,3)}</div>
+        <div class="technical-sub">勝率 ${fmt(t.win_rate,1)}% / 最大DD ${fmt(t.max_dd,2)}%</div>
       </div>
-      <div class="technical-card ${t.overall_direction}">
-        <div class="technical-label">総合判断</div><div class="technical-value">${t.overall}</div>
-        <div class="technical-sub">陽線・陰線とMACD方向を組み合わせた補助判断です。</div>
+      <div class="technical-card neutral">
+        <div class="technical-label">売買回数</div><div class="technical-value">${fmt(t.total_trades)}回</div>
+        <div class="technical-sub">買い ${fmt(t.long_trades)}回 / 信用売り ${fmt(t.short_trades)}回</div>
       </div>`;
   } catch (error) {
     if (requestId !== technicalRequestId || currentTab !== code) return;
-    grid.innerHTML = `<div class="technical-card neutral"><div class="technical-label">MACD判断</div><div class="technical-value">取得できません</div><div class="technical-sub">${error.message}</div></div>`;
+    grid.innerHTML = `<div class="technical-card neutral"><div class="technical-label">戦略結果</div><div class="technical-value">取得できません</div><div class="technical-sub">${error.message}</div></div>`;
   }
 }
 

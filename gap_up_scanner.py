@@ -1116,23 +1116,120 @@ def _calc_technical_signal(df: pd.DataFrame, ticker: str) -> dict:
     }
 
 
+def _calc_candle_ema_strategy(df: pd.DataFrame, ticker: str) -> dict:
+    """陽線と陰線時のEMA12比較を使う翌朝決済戦略を集計する。"""
+    work = df[["Open", "Close"]].dropna().copy()
+    if len(work) < CONFIG["macd_fast"] + 2:
+        raise ValueError("戦略判定に必要な日足データが不足しています")
+
+    work["ema_fast"] = work["Close"].astype(float).ewm(
+        span=CONFIG["macd_fast"], adjust=False
+    ).mean()
+    margin = float(CONFIG["margin"])
+    position_size = float(CONFIG["position_size"])
+    trades = []
+
+    for i in range(1, len(work) - 1):
+        open_price = float(work["Open"].iloc[i])
+        close_price = float(work["Close"].iloc[i])
+        next_open = float(work["Open"].iloc[i + 1])
+        previous_ema = float(work["ema_fast"].iloc[i - 1])
+        current_ema = float(work["ema_fast"].iloc[i])
+        if min(open_price, close_price, next_open) <= 0:
+            continue
+
+        if close_price > open_price:
+            side = "long"
+            reason = "陽線"
+        elif close_price < open_price and previous_ema > current_ema:
+            side = "long"
+            reason = "陰線・前日EMA12が高い"
+        elif close_price < open_price and previous_ema < current_ema:
+            side = "short"
+            reason = "陰線・前日EMA12が低い"
+        else:
+            continue
+
+        shares = int(position_size / close_price)
+        if shares <= 0:
+            continue
+        price_move = next_open - close_price
+        pnl = price_move * shares if side == "long" else -price_move * shares
+        trades.append({
+            "side": side,
+            "reason": reason,
+            "pnl": float(pnl),
+        })
+
+    if not trades:
+        raise ValueError("戦略条件に一致するトレードがありません")
+
+    pnls = np.array([trade["pnl"] for trade in trades], dtype=float)
+    gross_profit = float(pnls[pnls > 0].sum())
+    gross_loss = abs(float(pnls[pnls < 0].sum()))
+    equity = margin + np.cumsum(pnls)
+    peak = np.maximum.accumulate(np.concatenate(([margin], equity)))[1:]
+    max_dd = float(np.min((equity - peak) / peak) * 100)
+
+    latest = work.iloc[-1]
+    latest_previous_ema = float(work["ema_fast"].iloc[-2])
+    latest_current_ema = float(work["ema_fast"].iloc[-1])
+    latest_open = float(latest["Open"])
+    latest_close = float(latest["Close"])
+    if latest_close > latest_open:
+        latest_action = "買い"
+        latest_reason = "陽線のため15:30に買い"
+        latest_direction = "bullish"
+    elif latest_close < latest_open and latest_previous_ema > latest_current_ema:
+        latest_action = "買い"
+        latest_reason = "陰線・前日のEMA12が高いため買い"
+        latest_direction = "bullish"
+    elif latest_close < latest_open and latest_previous_ema < latest_current_ema:
+        latest_action = "信用売り"
+        latest_reason = "陰線・前日のEMA12が低いため信用売り"
+        latest_direction = "bearish"
+    else:
+        latest_action = "見送り"
+        latest_reason = "十字線またはEMA12が同値"
+        latest_direction = "neutral"
+
+    return {
+        "ticker": ticker,
+        "date": work.index[-1].strftime("%Y-%m-%d"),
+        "latest_action": latest_action,
+        "latest_reason": latest_reason,
+        "latest_direction": latest_direction,
+        "exit_rule": "翌営業日09:00の始値で決済",
+        "ema_fast": CONFIG["macd_fast"],
+        "previous_ema": round(latest_previous_ema, 4),
+        "current_ema": round(latest_current_ema, 4),
+        "net_profit": round(float(pnls.sum())),
+        "pf": round(gross_profit / gross_loss, 3) if gross_loss > 0 else 999.99,
+        "win_rate": round(float((pnls > 0).mean() * 100), 1),
+        "max_dd": round(max_dd, 2),
+        "total_trades": len(trades),
+        "long_trades": sum(trade["side"] == "long" for trade in trades),
+        "short_trades": sum(trade["side"] == "short" for trade in trades),
+    }
+
+
 def _load_technical_signal(code: str) -> dict:
     """Yahoo Financeの直近日足を優先してMACD判断を返す。"""
     ticker = f"{code}.T"
     try:
         import yfinance as yf
-        df = yf.download(ticker, period="6mo", progress=False, auto_adjust=True)
+        df = yf.download(ticker, start=CONFIG["start_date"], progress=False, auto_adjust=True)
         if isinstance(df.columns, pd.MultiIndex):
             df = df.droplevel(1, axis=1)
         if df is not None and len(df) >= CONFIG["macd_slow"] + CONFIG["macd_signal"]:
-            return _calc_technical_signal(df, ticker)
+            return _calc_candle_ema_strategy(df, ticker)
     except Exception:
         pass
 
     cache_path = os.path.join("price_cache", f"{ticker}.pkl")
     if not os.path.exists(cache_path):
         raise ValueError("MACD判定用の日足データを取得できませんでした")
-    return _calc_technical_signal(pd.read_pickle(cache_path), ticker)
+    return _calc_candle_ema_strategy(pd.read_pickle(cache_path), ticker)
 
 
 class PrototypeApiHandler(BaseHTTPRequestHandler):
