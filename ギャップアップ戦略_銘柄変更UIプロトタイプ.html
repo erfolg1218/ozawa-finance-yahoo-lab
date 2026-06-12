@@ -40,6 +40,18 @@ body{background:#0d1117;color:#e6edf3;font-family:'Noto Sans JP','Segoe UI',Aria
 .container{padding:18px 24px;max-width:1700px;margin:0 auto}
 .prototype-note{display:flex;justify-content:space-between;gap:20px;align-items:center;margin-bottom:14px;padding:10px 14px;border:1px solid rgba(88,166,255,.35);border-radius:8px;background:linear-gradient(90deg,rgba(88,166,255,.12),rgba(63,185,80,.04));color:#c9d1d9;font-size:11px}
 .prototype-note strong{color:#58a6ff}
+.technical-panel{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:14px 16px;margin-bottom:14px}
+.technical-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:12px}
+.technical-title{font-size:13px;font-weight:700;color:#e6edf3}
+.technical-date{font-size:10px;color:#8b949e}
+.technical-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.technical-card{padding:12px;border:1px solid #30363d;border-radius:7px;background:#0d1117}
+.technical-label{font-size:9px;color:#8b949e;letter-spacing:.5px;margin-bottom:5px}
+.technical-value{font-size:16px;font-weight:700}
+.technical-sub{font-size:9px;color:#8b949e;margin-top:4px;line-height:1.5}
+.technical-card.bullish{border-color:rgba(63,185,80,.55)}.technical-card.bullish .technical-value{color:#3fb950}
+.technical-card.bearish{border-color:rgba(248,81,73,.55)}.technical-card.bearish .technical-value{color:#f85149}
+.technical-card.neutral{border-color:rgba(227,179,65,.55)}.technical-card.neutral .technical-value{color:#e3b341}
 .stock-name{display:block;margin-top:2px;color:#8b949e;font-size:9px;font-weight:500;letter-spacing:0}
 .selector-panel{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:14px 16px;margin-bottom:14px}
 .selector-head{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:11px}
@@ -157,6 +169,7 @@ tr:hover td{background:rgba(56,139,253,0.04)}
 
 @media (max-width:1300px){
   .kpi-grid{grid-template-columns:repeat(4,1fr)}
+  .technical-grid{grid-template-columns:repeat(2,1fr)}
   .two-col,.two-col-eq,.three-col{grid-template-columns:1fr}
   .prototype-note,.selector-head{align-items:flex-start;flex-direction:column}
   .add-stock-form{grid-template-columns:1fr 1fr}
@@ -211,6 +224,15 @@ tr:hover td{background:rgba(56,139,253,0.04)}
       <div class="form-message" id="add-stock-message">ローカルAPI接続後、銘柄名から証券コードを検索し、Yahoo Finance実データを読み込みます。</div>
     </div>
     <div class="stock-selector" id="stock-selector"></div>
+  </div>
+  <div class="technical-panel" id="technical-panel">
+    <div class="technical-head">
+      <div class="technical-title">日足・MACD判断（12・26・9）</div>
+      <div class="technical-date" id="technical-date"></div>
+    </div>
+    <div class="technical-grid" id="technical-grid">
+      <div class="technical-card neutral"><div class="technical-value">個別銘柄を選択</div></div>
+    </div>
   </div>
   <!-- KPI -->
   <div class="kpi-grid" id="kpi-area"></div>
@@ -269,6 +291,8 @@ let currentTab = 'combined';
 let currentPeriod = 'all';
 let perfChart = null;
 let combinedCache = {};
+const technicalCache = {};
+let technicalRequestId = 0;
 
 const fmt = (v,d=0) => v==null?'-':Number(v).toLocaleString('ja-JP',{minimumFractionDigits:d,maximumFractionDigits:d});
 const fmtJPY = (v) => (v>=0?'+':'')+Math.round(v).toLocaleString('ja-JP')+'円';
@@ -412,6 +436,52 @@ function renderKPI() {
     </div>
   `).join('');
   document.getElementById('margin-display').textContent = margin.toLocaleString('ja-JP');
+}
+
+async function renderTechnical() {
+  const grid = document.getElementById('technical-grid');
+  const date = document.getElementById('technical-date');
+  if (currentTab === 'combined') {
+    date.textContent = '';
+    grid.innerHTML = '<div class="technical-card neutral"><div class="technical-label">判断対象</div><div class="technical-value">個別銘柄を選択</div><div class="technical-sub">上部の銘柄タブを選ぶと最新の日足とMACDを表示します。</div></div>';
+    return;
+  }
+
+  const code = currentTab;
+  const requestId = ++technicalRequestId;
+  grid.innerHTML = '<div class="technical-card neutral"><div class="technical-value">判定中...</div></div>';
+  date.textContent = `${code} ${STOCK_NAMES[code] || ''}`;
+  try {
+    if (!technicalCache[code]) {
+      const response = await fetch(`${API_BASE}/api/technical?code=${code}`);
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'MACD判定を取得できません');
+      technicalCache[code] = payload;
+    }
+    if (requestId !== technicalRequestId || currentTab !== code) return;
+    const t = technicalCache[code];
+    date.textContent = `${code} ${STOCK_NAMES[code] || ''} / ${t.date}`;
+    grid.innerHTML = `
+      <div class="technical-card ${t.candle_direction}">
+        <div class="technical-label">最新日足</div><div class="technical-value">${t.candle}</div>
+        <div class="technical-sub">始値 ${fmt(t.open,2)} / 終値 ${fmt(t.close,2)}</div>
+      </div>
+      <div class="technical-card ${t.macd_direction}">
+        <div class="technical-label">MACD方向</div><div class="technical-value">${t.macd_label}</div>
+        <div class="technical-sub">MACD ${fmt(t.macd,4)} / Signal ${fmt(t.signal,4)}</div>
+      </div>
+      <div class="technical-card ${t.histogram>=0?'bullish':'bearish'}">
+        <div class="technical-label">ヒストグラム</div><div class="technical-value">${fmt(t.histogram,4)}</div>
+        <div class="technical-sub">勢いは前日比で${t.histogram_trend}</div>
+      </div>
+      <div class="technical-card ${t.overall_direction}">
+        <div class="technical-label">総合判断</div><div class="technical-value">${t.overall}</div>
+        <div class="technical-sub">陽線・陰線とMACD方向を組み合わせた補助判断です。</div>
+      </div>`;
+  } catch (error) {
+    if (requestId !== technicalRequestId || currentTab !== code) return;
+    grid.innerHTML = `<div class="technical-card neutral"><div class="technical-label">MACD判断</div><div class="technical-value">取得できません</div><div class="technical-sub">${error.message}</div></div>`;
+  }
 }
 
 function renderStats() {
@@ -776,6 +846,7 @@ function renderMatrix() {
 }
 
 function render() {
+  renderTechnical();
   renderKPI();
   renderStats();
   renderChart();

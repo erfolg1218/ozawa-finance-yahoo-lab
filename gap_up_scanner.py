@@ -67,6 +67,9 @@ CONFIG = {
     "min_data_days":    100,
     "html_detail_max":  200,
     "min_net_profit":   10_000,
+    "macd_fast":        12,
+    "macd_slow":        26,
+    "macd_signal":      9,
 }
 
 # ==============================================================
@@ -1050,6 +1053,88 @@ def _load_yahoo_prototype_data(code: str) -> dict:
     return result
 
 
+def _calc_technical_signal(df: pd.DataFrame, ticker: str) -> dict:
+    """最新日足の陽線・陰線とMACDによる方向判断を返す。"""
+    work = df[["Open", "Close"]].dropna().copy()
+    if len(work) < CONFIG["macd_slow"] + CONFIG["macd_signal"]:
+        raise ValueError("MACD判定に必要な日足データが不足しています")
+
+    close = work["Close"].astype(float)
+    macd = close.ewm(span=CONFIG["macd_fast"], adjust=False).mean() - close.ewm(
+        span=CONFIG["macd_slow"], adjust=False
+    ).mean()
+    signal = macd.ewm(span=CONFIG["macd_signal"], adjust=False).mean()
+    histogram = macd - signal
+    latest = work.iloc[-1]
+    latest_macd = float(macd.iloc[-1])
+    latest_signal = float(signal.iloc[-1])
+    latest_histogram = float(histogram.iloc[-1])
+    previous_histogram = float(histogram.iloc[-2])
+
+    if float(latest["Close"]) > float(latest["Open"]):
+        candle = "陽線"
+        candle_direction = "bullish"
+    elif float(latest["Close"]) < float(latest["Open"]):
+        candle = "陰線"
+        candle_direction = "bearish"
+    else:
+        candle = "十字線"
+        candle_direction = "neutral"
+
+    macd_direction = "bullish" if latest_macd > latest_signal else "bearish"
+    macd_label = "強気" if macd_direction == "bullish" else "弱気"
+    if candle_direction == macd_direction == "bullish":
+        overall = "上昇優勢"
+        overall_direction = "bullish"
+    elif candle_direction == macd_direction == "bearish":
+        overall = "下降優勢"
+        overall_direction = "bearish"
+    else:
+        overall = "方向不一致・様子見"
+        overall_direction = "neutral"
+
+    return {
+        "ticker": ticker,
+        "date": work.index[-1].strftime("%Y-%m-%d"),
+        "open": round(float(latest["Open"]), 2),
+        "close": round(float(latest["Close"]), 2),
+        "candle": candle,
+        "candle_direction": candle_direction,
+        "macd": round(latest_macd, 4),
+        "signal": round(latest_signal, 4),
+        "histogram": round(latest_histogram, 4),
+        "histogram_trend": "拡大" if abs(latest_histogram) > abs(previous_histogram) else "縮小",
+        "macd_label": macd_label,
+        "macd_direction": macd_direction,
+        "overall": overall,
+        "overall_direction": overall_direction,
+        "params": {
+            "fast": CONFIG["macd_fast"],
+            "slow": CONFIG["macd_slow"],
+            "signal": CONFIG["macd_signal"],
+        },
+    }
+
+
+def _load_technical_signal(code: str) -> dict:
+    """Yahoo Financeの直近日足を優先してMACD判断を返す。"""
+    ticker = f"{code}.T"
+    try:
+        import yfinance as yf
+        df = yf.download(ticker, period="6mo", progress=False, auto_adjust=True)
+        if isinstance(df.columns, pd.MultiIndex):
+            df = df.droplevel(1, axis=1)
+        if df is not None and len(df) >= CONFIG["macd_slow"] + CONFIG["macd_signal"]:
+            return _calc_technical_signal(df, ticker)
+    except Exception:
+        pass
+
+    cache_path = os.path.join("price_cache", f"{ticker}.pkl")
+    if not os.path.exists(cache_path):
+        raise ValueError("MACD判定用の日足データを取得できませんでした")
+    return _calc_technical_signal(pd.read_pickle(cache_path), ticker)
+
+
 class PrototypeApiHandler(BaseHTTPRequestHandler):
     """銘柄名検索とYahoo Finance分析を提供するローカルAPI。"""
 
@@ -1082,6 +1167,16 @@ class PrototypeApiHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/health":
             self._json({"status": "ok"})
+            return
+        if parsed.path == "/api/technical":
+            code = params.get("code", [""])[0].strip()
+            if not code.isdigit() or len(code) != 4:
+                self._json({"error": "証券コードは4桁の数字で指定してください"}, 400)
+                return
+            try:
+                self._json(_load_technical_signal(code))
+            except Exception as exc:
+                self._json({"error": str(exc)}, 500)
             return
         if parsed.path == "/api/search":
             query = params.get("q", [""])[0].strip().lower()
