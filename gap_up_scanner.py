@@ -60,7 +60,7 @@ CONFIG = {
     "position_size":    3_300_000,
     "margin":           1_000_000,
     "start_date":       "2015-01-01",
-    "end_date":         "2026-04-30",
+    "end_date":         "2026-06-01",
     "top_n":            3,
     "output_file":      "gap_up_report.html",
     "min_trades":       20,
@@ -1033,9 +1033,13 @@ def _load_yahoo_prototype_data(code: str) -> dict:
     ticker = f"{code}.T"
     cache_path = os.path.join("price_cache", f"{ticker}.pkl")
     source = "Yahoo Finance cache"
+    df = None
     if os.path.exists(cache_path):
-        df = pd.read_pickle(cache_path)
-    else:
+        cached = pd.read_pickle(cache_path)
+        cache_limit = pd.Timestamp(CONFIG["end_date"]) - pd.Timedelta(days=7)
+        if len(cached) and pd.Timestamp(cached.index.max()).tz_localize(None) >= cache_limit:
+            df = cached
+    if df is None:
         import yfinance as yf
         df = yf.download(ticker, start=CONFIG["start_date"], end=CONFIG["end_date"],
                          progress=False, auto_adjust=True)

@@ -182,7 +182,7 @@ tr:hover td{background:rgba(56,139,253,0.04)}
   <h1>📊 ギャップアップ戦略 <span class="accent">パフォーマンス評価レポート</span><span class="prototype-badge">UI PROTOTYPE</span></h1>
   <div class="header-meta">
     <span><b>戦略:</b> ギャップアップトレード(反転検知)</span>
-    <span><b>期間:</b> 2009/02 〜 2026/04</span>
+    <span><b>期間:</b> 2009/02 〜 2026/05</span>
     <span><b>対象:</b> <span id="header-target">TSE 7203 / 6758 / 8035</span></span>
     <span><b>運用条件:</b> 各銘柄 実証拠金¥45.5万 × レバ3.3倍 = ポジション¥150万</span>
   </div>
@@ -877,6 +877,33 @@ function switchPeriod(p, btn) {
 // 初期描画
 renderStockControls();
 render();
+
+async function refreshInitialYahooData() {
+  setAddMessage('2026年5月までの最新データを読み込み中...');
+  let updated = 0;
+  for (const code of ORIGINAL_CODES) {
+    try {
+      const response = await fetch(`${API_BASE}/api/analyze?code=${code}`);
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'データ取得に失敗しました');
+      for (const period of Object.keys(DATA.periods)) {
+        DATA.periods[period].per_stock[code] = structuredClone(payload);
+      }
+      YAHOO_CODES.add(code);
+      updated++;
+    } catch (error) {
+      console.warn(`${code} の最新データ取得に失敗しました`, error);
+    }
+  }
+  combinedCache = {};
+  renderStockControls();
+  render();
+  setAddMessage(updated === ORIGINAL_CODES.length
+    ? '2026年5月までのデータを反映しました。'
+    : `${updated}/${ORIGINAL_CODES.length}銘柄を2026年5月まで更新しました。`, updated ? 'success' : 'error');
+}
+
+refreshInitialYahooData();
 </script>
 </body>
 </html>
