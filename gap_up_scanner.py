@@ -1,6 +1,8 @@
 """
 小澤ファイナンス - ギャップアップ全銘柄スキャナー
 Version: 1.10（根本修正：英数字コード除外 → キャッシュ有効化 + 会社名表示）
+作成: Claude（株式バックテストエンジニア）
+窓口: 児玉圭司
 
 変更履歴:
   v1.5 → ポートフォリオ選択UI + 会社名表示
@@ -71,7 +73,7 @@ CONFIG = {
 # ★ v1.6 追加：除外コード帯（投資信託・ETF・REIT）
 # ==============================================================
 # 1300〜1999：上場投資信託（ETF）・J-REIT など
-# 2000〜2999：投資信託パッケージ
+# 2000〜2999：投資信託パッケージ（小澤さんが「いらない」と言ったやつ）
 # 3000〜9999：個別株（対象）
 EXCLUDE_CODE_RANGE = range(1300, 3000)
 
@@ -395,7 +397,12 @@ def report_agent(ranked_results: list, name_map: dict) -> None:
     trade_data_js = {}
     for r in ranked_results[:detail_max]:
         trade_data_js[r["ticker"]] = [
-            {"d": t["entry_date"], "p": t["pnl"]} for t in r["trades"]
+            {
+                "d": t["entry_date"], "x": t["exit_date"], "p": t["pnl"],
+                "ep": t["entry_price"], "xp": t["exit_price"],
+                "s": t["shares"], "g": t["gap_pct"],
+            }
+            for t in r["trades"]
         ]
 
     rank_rows = []
@@ -428,7 +435,7 @@ def report_agent(ranked_results: list, name_map: dict) -> None:
         eq_data   = json.dumps(r["equity_curve"])
 
         detail_sections.append(f"""
-<section class="detail-section" data-rank="{rank}"{display}>
+<section class="detail-section" data-rank="{rank}" data-ticker="{ticker}"{display}>
   <h2><span class="rank-badge">{rank}位</span> {dname(ticker)}</h2>
   <div class="kpi-grid">
     <div class="kpi-card"><div class="kpi-label">純利益</div><div class="kpi-value {nc}">{k['net_profit']:,}円</div></div>
@@ -457,7 +464,7 @@ def report_agent(ranked_results: list, name_map: dict) -> None:
 </section>""")
 
         chart_scripts.append(f"""
-  new Chart(document.getElementById('chart_{rank}').getContext('2d'),{{
+  DETAIL_CHARTS['{ticker}'] = new Chart(document.getElementById('chart_{rank}').getContext('2d'),{{
     type:'line',
     data:{{labels:{eq_labels},datasets:[{{label:'資産曲線',data:{eq_data},
       borderColor:'#2ea047',backgroundColor:'rgba(46,160,71,0.15)',
@@ -494,6 +501,10 @@ header .config{{margin-top:16px;padding:16px;background:rgba(255,255,255,.08);bo
 .toggle-btn{{padding:8px 18px;border:1px solid #d0d7de;background:white;border-radius:6px;cursor:pointer;font-weight:600;transition:all .15s}}
 .toggle-btn:hover{{background:#f6f8fa}}.toggle-btn.active{{background:#2da44e;color:white;border-color:#2da44e}}
 .toggle-bar input{{padding:8px;border:1px solid #d0d7de;border-radius:6px;width:80px;font-size:14px}}
+.period-bar{{background:white;padding:16px;border-radius:8px;margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}}
+.period-bar .label{{font-weight:600;color:#656d76}}
+.period-bar select{{padding:8px 12px;border:1px solid #d0d7de;border-radius:6px;background:white;font-size:14px}}
+.period-note{{font-size:12px;color:#656d76}}
 .ranking,.trades,.monthly{{width:100%;border-collapse:collapse;background:white;border-radius:8px;overflow:hidden}}
 .ranking th,.trades th,.monthly th{{background:#f6f8fa;padding:10px;text-align:center;font-size:12px;color:#656d76;border-bottom:1px solid #d0d7de}}
 .ranking td,.trades td,.monthly td{{padding:10px;text-align:center;border-bottom:1px solid #eaeef2;font-size:13px}}
@@ -566,6 +577,14 @@ footer{{text-align:center;color:#656d76;font-size:12px;margin-top:32px;padding:1
   <button class="toggle-btn" onclick="setTopN(parseInt(document.getElementById('customN').value)||3,this)">適用</button>
 </div>
 
+<div class="period-bar">
+  <span class="label">表示年月：</span>
+  <select id="periodSelect" onchange="applyPeriodFilter(this.value)">
+    <option value="all">全期間</option>
+  </select>
+  <span id="periodStatus" class="period-note">グラフ・トレード一覧・選択ポートフォリオは全期間を表示中</span>
+</div>
+
 <h2 style="margin:24px 0 8px">ランキング（全{len(ranked_results)}銘柄）</h2>
 <p style="font-size:13px;color:#656d76;margin:0 0 12px">
   チェックボックスで銘柄を選択すると、下部パネルに合算ポートフォリオが表示されます
@@ -624,6 +643,68 @@ const DETAIL_MAX = {detail_max};
 let selected = new Set();
 let pfChart  = null;
 let panelOpen = false;
+let activePeriod = 'all';
+const DETAIL_CHARTS = {{}};
+
+function periodTrades(ticker) {{
+  const trades = TRADE_DATA[ticker] || [];
+  return activePeriod === 'all' ? trades : trades.filter(tr => tr.d.startsWith(activePeriod));
+}}
+
+function formatTradeRows(trades) {{
+  let cumulative = 0;
+  return trades.slice(-50).map(tr => {{
+    cumulative += tr.p;
+    const cls = tr.p >= 0 ? 'pos' : 'neg';
+    return `<tr><td>${{tr.d}}</td><td>${{tr.x}}</td>` +
+      `<td>${{Number(tr.ep).toLocaleString(undefined, {{minimumFractionDigits:2, maximumFractionDigits:2}})}}</td>` +
+      `<td>${{Number(tr.xp).toLocaleString(undefined, {{minimumFractionDigits:2, maximumFractionDigits:2}})}}</td>` +
+      `<td>${{Number(tr.s).toLocaleString()}}</td>` +
+      `<td class="${{cls}}">${{tr.g >= 0 ? '+' : ''}}${{Number(tr.g).toFixed(2)}}%</td>` +
+      `<td class="${{cls}}">${{tr.p >= 0 ? '+' : ''}}${{Number(tr.p).toLocaleString()}}</td>` +
+      `<td>${{cumulative >= 0 ? '+' : ''}}${{cumulative.toLocaleString()}}</td></tr>`;
+  }}).join('');
+}}
+
+function updateDetailViews() {{
+  document.querySelectorAll('.detail-section').forEach(section => {{
+    const ticker = section.dataset.ticker;
+    const trades = periodTrades(ticker);
+    const chart = DETAIL_CHARTS[ticker];
+    if(chart) {{
+      let equity = CFG_MARGIN;
+      chart.data.labels = trades.map(tr => tr.d);
+      chart.data.datasets[0].data = trades.map(tr => equity += tr.p);
+      chart.update();
+    }}
+    const body = section.querySelector('tbody');
+    if(body) {{
+      body.innerHTML = trades.length ? formatTradeRows(trades)
+        : '<tr><td colspan="8" style="color:#656d76">選択した年月のトレードはありません</td></tr>';
+    }}
+  }});
+}}
+
+function applyPeriodFilter(period) {{
+  activePeriod = period;
+  const label = period === 'all' ? '全期間' : period.replace('-', '年') + '月';
+  document.getElementById('periodStatus').textContent =
+    `グラフ・トレード一覧・選択ポートフォリオは${{label}}を表示中（ランキング・長期KPIは全期間）`;
+  updateDetailViews();
+  updatePortfolioPanel();
+}}
+
+function setupPeriodSelector() {{
+  const periods = new Set();
+  Object.values(TRADE_DATA).forEach(trades => trades.forEach(tr => periods.add(tr.d.slice(0, 7))));
+  const select = document.getElementById('periodSelect');
+  Array.from(periods).sort().reverse().forEach(period => {{
+    const option = document.createElement('option');
+    option.value = period;
+    option.textContent = period.replace('-', '年') + '月';
+    select.appendChild(option);
+  }});
+}}
 
 function setTopN(n, btn) {{
   document.querySelectorAll('.rank-row').forEach((el,i) => el.style.display = i < n ? '' : 'none');
@@ -681,10 +762,9 @@ function updatePortfolioPanel() {{
   let totalProfit = 0, wins = 0, grossProfit = 0, grossLoss = 0;
   const allPnls = [];
   for(const t of tickers) {{
-    const k = ALL_KPIS[t]; if(!k) continue;
-    totalProfit += k.np;
     if(TRADE_DATA[t]) {{
-      for(const tr of TRADE_DATA[t]) {{
+      for(const tr of periodTrades(t)) {{
+        totalProfit += tr.p;
         if(tr.p > 0) {{ wins++; grossProfit += tr.p; }}
         else if(tr.p < 0) {{ grossLoss += Math.abs(tr.p); }}
         allPnls.push(tr.p);
@@ -694,7 +774,7 @@ function updatePortfolioPanel() {{
   const n       = tickers.length;
   const margin  = n * CFG_MARGIN;
   const finalEq = margin + totalProfit;
-  const years   = 11.33;
+  const years   = activePeriod === 'all' ? 11.33 : (1 / 12);
   const cagr    = finalEq > 0 ? (Math.pow(finalEq / margin, 1 / years) - 1) * 100 : -100;
   const pf      = grossLoss > 0 ? (grossProfit / grossLoss) : 999.99;
   const winRate = allPnls.length > 0 ? (wins / allPnls.length * 100) : 0;
@@ -733,7 +813,7 @@ function removeOne(ticker) {{
 function drawPortfolioChart(tickers, totalMargin) {{
   const byDate = {{}};
   for(const t of tickers) {{
-    for(const tr of TRADE_DATA[t]) {{ byDate[tr.d] = (byDate[tr.d] || 0) + tr.p; }}
+    for(const tr of periodTrades(t)) {{ byDate[tr.d] = (byDate[tr.d] || 0) + tr.p; }}
   }}
   const dates = Object.keys(byDate).sort();
   const curve = []; let equity = totalMargin;
@@ -753,6 +833,7 @@ function drawPortfolioChart(tickers, totalMargin) {{
 
 document.addEventListener('DOMContentLoaded', () => {{
   {"".join(chart_scripts)}
+  setupPeriodSelector();
   const btn = Array.from(document.querySelectorAll('.toggle-btn')).find(b => b.textContent.trim() === String(DEFAULT_TOP_N));
   setTopN(DEFAULT_TOP_N, btn);
 }});
