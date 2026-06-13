@@ -947,6 +947,14 @@ def _prototype_metrics(df: pd.DataFrame, ticker: str) -> dict:
     for year in monthly_matrix:
         for month in range(1, 13):
             monthly_matrix[year].setdefault(str(month), 0.0)
+    daily_pnl = [
+        {
+            "date": idx.strftime("%Y-%m-%d"),
+            "pnl": round(float(value), 2),
+            "pnl_pct": float(value / margin * 100),
+        }
+        for idx, value in pnl.items()
+    ]
 
     yearly = []
     for year, group in trade_df.groupby(trade_df.index.year):
@@ -1022,7 +1030,13 @@ def _prototype_metrics(df: pd.DataFrame, ticker: str) -> dict:
         "max_win_streak": max_streak(pnl.tolist(), True),
         "max_loss_streak": max_streak(pnl.tolist(), False),
     }
-    return {"metrics": metrics, "equity_curve": equity_curve, "monthly_matrix": monthly_matrix, "yearly": yearly}
+    return {
+        "metrics": metrics,
+        "equity_curve": equity_curve,
+        "monthly_matrix": monthly_matrix,
+        "daily_pnl": daily_pnl,
+        "yearly": yearly,
+    }
 
 
 def _load_yahoo_prototype_data(code: str) -> dict:

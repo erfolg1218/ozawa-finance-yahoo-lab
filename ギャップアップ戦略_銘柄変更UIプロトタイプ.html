@@ -250,6 +250,13 @@ tr:hover td{background:rgba(56,139,253,0.04)}
     <div class="note">※ 表示値は実証拠金 ¥<span class="num" id="margin-display"></span> ベースの月次収益率(%)。CSV損益(¥150万ポジション計算済)/ 証拠金で算出。</div>
   </div>
 
+  <!-- 直近完了月の日次マトリクス -->
+  <div class="panel">
+    <div class="sec"><span class="ic">🗓️</span><span id="daily-matrix-title">直近完了月の日次損益マトリクス</span></div>
+    <div class="matrix-wrap"><table class="mx" id="daily-matrix-table"></table></div>
+    <div class="note">※ 各営業日の損益率を実証拠金ベースで表示。土日・休場日は「-」です。</div>
+  </div>
+
 </div>
 
 <script>
@@ -334,6 +341,14 @@ function combineSelectedData(period) {
     }
   }));
 
+  const dailyMap = new Map();
+  stocks.forEach(s => (s.daily_pnl || []).forEach(row => {
+    dailyMap.set(row.date, (dailyMap.get(row.date) || 0) + row.pnl);
+  }));
+  const daily_pnl = [...dailyMap.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([date,pnl]) => ({
+    date, pnl, pnl_pct:pnl/margin*100,
+  }));
+
   const sourceMetrics = stocks.map(s => s.metrics);
   const totalParts = sourceMetrics.map(grossParts).reduce((a,p)=>({profit:a.profit+p.profit,loss:a.loss+p.loss}),{profit:0,loss:0});
   const total_pnl = sourceMetrics.reduce((a,m)=>a+m.total_pnl,0);
@@ -376,7 +391,7 @@ function combineSelectedData(period) {
     max_win_streak:Math.max(...sourceMetrics.map(m=>m.max_win_streak)),
     max_loss_streak:Math.max(...sourceMetrics.map(m=>m.max_loss_streak)),
   };
-  combinedCache[cacheKey] = {metrics,equity_curve,monthly_matrix,yearly};
+  combinedCache[cacheKey] = {metrics,equity_curve,monthly_matrix,daily_pnl,yearly};
   return combinedCache[cacheKey];
 }
 
@@ -775,6 +790,40 @@ function renderMatrix() {
   document.getElementById('matrix-table').innerHTML = html;
 }
 
+function renderDailyMatrix() {
+  const now = new Date();
+  const target = new Date(now.getFullYear(), now.getMonth()-1, 1);
+  const year = target.getFullYear();
+  const month = target.getMonth();
+  const monthKey = `${year}-${String(month+1).padStart(2,'0')}`;
+  document.getElementById('daily-matrix-title').textContent = `${year}年${month+1}月 日次損益マトリクス(実証拠金比%)`;
+
+  const rows = (getCurrentData().daily_pnl || []).filter(row => row.date.startsWith(monthKey));
+  const values = rows.map(row => row.pnl_pct);
+  const scale = values.length ? Math.max(...values.map(Math.abs)) || 1 : 1;
+  const byDay = new Map(rows.map(row => [Number(row.date.slice(8,10)), row]));
+  const lastDay = new Date(year, month+1, 0).getDate();
+  const firstWeekday = (new Date(year, month, 1).getDay()+6)%7;
+  const weekdays = ['月','火','水','木','金','土','日'];
+  let cells = Array(firstWeekday).fill(null);
+  for (let day=1; day<=lastDay; day++) cells.push(day);
+  while (cells.length%7) cells.push(null);
+
+  let html = `<thead><tr>${weekdays.map(d=>`<th>${d}</th>`).join('')}</tr></thead><tbody>`;
+  for (let i=0; i<cells.length; i+=7) {
+    html += '<tr>' + cells.slice(i,i+7).map(day => {
+      if (!day) return '<td class="v0">-</td>';
+      const row = byDay.get(day);
+      if (!row) return `<td class="v0"><span class="num">${day}</span><br>-</td>`;
+      const c = intensity(row.pnl_pct, scale);
+      const txt = `${row.pnl_pct>0?'+':''}${row.pnl_pct.toFixed(1)}%`;
+      return `<td class="${c}" title="${Math.round(row.pnl).toLocaleString('ja-JP')}円"><span class="num">${day}</span><br>${txt}</td>`;
+    }).join('') + '</tr>';
+  }
+  html += '</tbody>';
+  document.getElementById('daily-matrix-table').innerHTML = html;
+}
+
 function render() {
   renderKPI();
   renderStats();
@@ -783,6 +832,7 @@ function render() {
   renderDD();
   renderRanking();
   renderMatrix();
+  renderDailyMatrix();
 }
 
 function switchTab(tab, btn) {
