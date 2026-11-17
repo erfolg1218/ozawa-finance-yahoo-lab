@@ -10,12 +10,13 @@ on:
       - stock_list.csv
       - "ギャップアップ戦略_銘柄変更UIプロトタイプ.html"
       - .github/workflows/pages.yml
+  schedule:
+    # 毎月1日 09:23（日本時間）に前月分までのデータで再計算・再公開
+    - cron: "23 0 1 * *"
   workflow_dispatch: {}   # Actions画面の「Run workflow」から手動で再公開
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
@@ -35,13 +36,45 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
+      - uses: actions/upload-artifact@v4
+        with:
+          name: data-status
+          path: _site/data_status.json
 
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  # 更新記録を main に残す（月1回のコミットで、GitHubが60日無活動の
+  # リポジトリの定期実行を自動停止するのも防ぐ）
+  record:
+    needs: deploy
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: data-status
+      - name: 更新記録をコミット
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
+          git add data_status.json
+          if git diff --cached --quiet; then
+            echo "変更なし"
+          else
+            git commit -m "Monthly data update: $(python3 -c 'import json;print(json.load(open("data_status.json"))["data_through"])')"
+            git push
+          fi

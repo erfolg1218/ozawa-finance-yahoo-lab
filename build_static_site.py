@@ -7,6 +7,8 @@ Yahoo Financeデータから検証結果を事前計算し、JSONとして書き
     python build_static_site.py              # watchlist.txt の銘柄だけ
     python build_static_site.py --out _site  # 出力先を指定（既定: _site）
 
+毎月1日に GitHub Actions が自動実行し、前月分までのデータで作り直す。
+
 出力構成:
     _site/index.html             画面（静的モード）
     _site/data/stocks.json       検索用の銘柄一覧（収録済みフラグ付き）
@@ -51,8 +53,10 @@ def build(out_dir: str) -> int:
         shutil.rmtree(out_dir)
     os.makedirs(stock_dir)
 
-    print(f"{len(codes)}銘柄を計算します")
-    ok, failed = [], []
+    end_date = scanner.CONFIG["end_date"]
+    expected_month = (datetime.strptime(end_date, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m")
+    print(f"{len(codes)}銘柄を計算します（{scanner.CONFIG['start_date']} 〜 {expected_month} 末）")
+    ok, failed, stale = [], [], []
     for i, code in enumerate(codes, 1):
         try:
             payload = scanner._load_yahoo_prototype_data(code)
@@ -61,7 +65,12 @@ def build(out_dir: str) -> int:
             with open(os.path.join(stock_dir, f"{code}.json"), "w", encoding="utf-8") as file:
                 file.write(body)
             ok.append(code)
-            print(f"  [{i}/{len(codes)}] {code} {payload['name']} OK")
+            last = payload.get("metrics", {}).get("end", "")[:7]
+            if last < expected_month:
+                stale.append({"code": code, "last_month": last})
+                print(f"  [{i}/{len(codes)}] {code} {payload['name']} OK（注意: {last} までしかデータがありません）")
+            else:
+                print(f"  [{i}/{len(codes)}] {code} {payload['name']} OK")
         except Exception as exc:  # 1銘柄の失敗で全体を止めない
             failed.append({"code": code, "error": str(exc)})
             print(f"  [{i}/{len(codes)}] {code} 失敗: {exc}")
@@ -74,8 +83,10 @@ def build(out_dir: str) -> int:
     ]
     index = {
         "generated_at": datetime.now(JST).strftime("%Y-%m-%d %H:%M JST"),
+        "data_through": expected_month,
         "available": ok,
         "failed": failed,
+        "stale": stale,
         "stocks": stocks,
     }
     with open(os.path.join(out_dir, "data", "stocks.json"), "w", encoding="utf-8") as file:
@@ -90,7 +101,11 @@ def build(out_dir: str) -> int:
     # GitHub Pages の Jekyll 処理を無効化
     open(os.path.join(out_dir, ".nojekyll"), "w").close()
 
-    print(f"完了: 成功 {len(ok)} / 失敗 {len(failed)} -> {out_dir}")
+    status = {k: index[k] for k in ("generated_at", "data_through", "available", "failed", "stale")}
+    with open(os.path.join(out_dir, "data_status.json"), "w", encoding="utf-8") as file:
+        json.dump(status, file, ensure_ascii=False, indent=2)
+
+    print(f"完了: 成功 {len(ok)} / 失敗 {len(failed)} / 前月分なし {len(stale)} -> {out_dir}")
     if not ok:
         print("1銘柄も取得できませんでした。Yahoo Financeへの接続を確認してください。")
         return 1

@@ -6,7 +6,7 @@
 - `gap_up_scanner.py` … バックテスト本体＋API（`--prototype-api`、`/api/search`・`/api/analyze`）
 - `ギャップアップ戦略_銘柄変更UIプロトタイプ.html` … 画面（Chart.js）。データ取得は `apiSearch()`/`apiAnalyze()` 経由
 - `build_static_site.py` … watchlist.txt の銘柄を事前計算し `_site/` に静的サイトを生成
-- `.github/workflows/pages.yml` … main へのpushで GitHub Pages に自動公開（Render不要）
+- `.github/workflows/pages.yml` … main へのpush、および**毎月1日 9:23 JST** に前月分までで再計算し GitHub Pages に公開（Render不要）。結果は `data_status.json` に記録
 - `render.yaml` … 任意銘柄をその場で計算したい場合のRender版（任意）
 
 ## 閲覧方法（3通り）
@@ -27,5 +27,5 @@ Claude本体が「番頭」として作業を割り振る。
 
 ## 注意
 - この開発用クラウド環境からは Yahoo Finance に接続できない。動作確認は合成データで行う
-- 分析期間 CONFIG の start_date / end_date は利用者が決める。勝手に変えない
+- 分析終了日 CONFIG end_date は自動（今月1日＝前月末まで）。`END_DATE` 環境変数で固定可。start_date は利用者が決める。勝手に変えない
 - 手数料・税・スリッページは未考慮（研究用途）
