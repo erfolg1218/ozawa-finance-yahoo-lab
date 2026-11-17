@@ -9,6 +9,19 @@ Yahoo Financeの日足データを使い、日本株のオーバーナイト値�
 - 銘柄別KPI・資産曲線・年次損益・月次ヒートマップ
 - 複数銘柄の選択と合算比較
 
+## Renderを使わずに見る（GitHub Pages）
+
+`main` ブランチへ push すると GitHub Actions が自動で計算し、GitHub Pages に公開します。
+
+- 公開URL: https://erfolg1218.github.io/ozawa-finance-yahoo-lab/
+- 公開する銘柄は `watchlist.txt` に4桁コードで追加します（1銘柄約250KB、目安300銘柄まで）
+- 未収録の銘柄は検索結果に「（未収録）」と表示されます
+- **毎月1日 9:23（日本時間）に自動で前月分までのデータを追加**して再公開します
+  - 更新結果は `data_status.json`（対象月・成功／失敗銘柄）として main に記録されます
+  - すぐ更新したい場合は Actions →「GitHub Pagesへ公開」→ Run workflow
+- 分析終了日は既定で「今月1日」（＝前月末まで）。固定したい場合は環境変数 `END_DATE=YYYY-MM-DD`
+- 初回のみ、GitHubのリポジトリ設定 → Pages → Source を「GitHub Actions」に設定してください
+
 ## ローカル起動
 
 ```powershell

@@ -50,6 +50,20 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
         pass
 
 # ==============================================================
+# 分析終了日：既定は「今月1日（日本時間）」＝前月末までの完了月データを使う
+# 環境変数 END_DATE=YYYY-MM-DD で固定も可能（yfinanceのendは当日を含まない）
+# ==============================================================
+def default_end_date() -> str:
+    override = os.environ.get("END_DATE", "").strip()
+    if override:
+        datetime.strptime(override, "%Y-%m-%d")  # 書式チェック
+        return override
+    from datetime import timezone, timedelta
+    now_jst = datetime.now(timezone(timedelta(hours=9)))
+    return now_jst.strftime("%Y-%m-01")
+
+
+# ==============================================================
 # CONFIG
 # ==============================================================
 CONFIG = {
@@ -60,7 +74,7 @@ CONFIG = {
     "position_size":    3_300_000,
     "margin":           1_000_000,
     "start_date":       "2015-01-01",
-    "end_date":         "2026-06-01",
+    "end_date":         default_end_date(),
     "top_n":            3,
     "output_file":      "gap_up_report.html",
     "min_trades":       20,
