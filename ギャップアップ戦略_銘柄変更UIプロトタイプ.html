@@ -271,6 +271,47 @@ const ORIGINAL_CODES = [...DATA.params.codes];
 const CUSTOM_CODES = new Set();
 const YAHOO_CODES = new Set(ORIGINAL_CODES);
 const API_BASE = location.protocol === 'file:' ? 'http://127.0.0.1:8765' : '';
+// 静的公開モード（GitHub Pages）: build_static_site.py が window.STATIC_SITE = true を埋め込む
+const STATIC_SITE = window.STATIC_SITE === true;
+let staticStockIndex = null;
+
+async function loadStaticStockIndex() {
+  if (!staticStockIndex) {
+    const response = await fetch('data/stocks.json', {cache: 'no-cache'});
+    if (!response.ok) throw new Error('銘柄一覧を読み込めません');
+    staticStockIndex = await response.json();
+  }
+  return staticStockIndex;
+}
+
+async function apiSearch(query) {
+  if (!STATIC_SITE) {
+    const response = await fetch(`${API_BASE}/api/search?q=${encodeURIComponent(query)}`);
+    if (!response.ok) throw new Error('検索APIに接続できません');
+    return response.json();
+  }
+  const index = await loadStaticStockIndex();
+  const q = query.toLowerCase();
+  const results = index.stocks
+    .filter(s => s.name.toLowerCase().includes(q) || s.code.includes(q))
+    .sort((a, b) => Number(b.available) - Number(a.available))
+    .slice(0, 20)
+    .map(s => ({code: s.code, ticker: `${s.code}.T`, name: s.available ? s.name : `${s.name}（未収録）`}));
+  return {results, count: results.length};
+}
+
+async function apiAnalyze(code) {
+  if (!STATIC_SITE) {
+    const response = await fetch(`${API_BASE}/api/analyze?code=${code}`);
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || 'データ取得に失敗しました');
+    return payload;
+  }
+  const response = await fetch(`data/stocks/${code}.json`, {cache: 'no-cache'});
+  if (response.status === 404) throw new Error('この銘柄は公開データに未収録です。watchlist.txt に追加すると次回の自動更新で反映されます');
+  if (!response.ok) throw new Error('データ取得に失敗しました');
+  return response.json();
+}
 let selectedCodes = [...DATA.params.codes];
 let currentTab = 'combined';
 let currentPeriod = 'all';
@@ -661,16 +702,14 @@ async function searchYahooStocks() {
   }
   setAddMessage(`「${query}」を検索中...`);
   try {
-    const response = await fetch(`${API_BASE}/api/search?q=${encodeURIComponent(query)}`);
-    if (!response.ok) throw new Error('検索APIに接続できません');
-    const payload = await response.json();
+    const payload = await apiSearch(query);
     const select = document.getElementById('stock-search-results');
     select.innerHTML = payload.results.length
       ? payload.results.map(r=>`<option value="${r.code}" data-name="${r.name}">${r.code}｜${r.name}</option>`).join('')
       : '<option value="">該当する銘柄がありません</option>';
     setAddMessage(payload.results.length ? `${payload.results.length}件見つかりました。銘柄を選択して実データを追加してください。` : '該当する銘柄がありません。', payload.results.length?'success':'error');
   } catch (error) {
-    setAddMessage('ローカルAPIに接続できません。gap_up_scanner.py --prototype-api を起動してください。', 'error');
+    setAddMessage(STATIC_SITE ? `検索できませんでした: ${error.message}` : 'ローカルAPIに接続できません。gap_up_scanner.py --prototype-api を起動してください。', 'error');
   }
 }
 
@@ -689,9 +728,7 @@ async function addYahooStock() {
   const name = select.selectedOptions[0].dataset.name || `${code} 銘柄`;
   setAddMessage(`${code} ${name} のYahoo Financeデータを読み込み中...`);
   try {
-    const response = await fetch(`${API_BASE}/api/analyze?code=${code}`);
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload.error || 'データ取得に失敗しました');
+    const payload = await apiAnalyze(code);
     for (const period of Object.keys(DATA.periods)) {
       DATA.periods[period].per_stock[code] = structuredClone(payload);
     }
@@ -862,9 +899,7 @@ async function refreshInitialYahooData() {
   let updated = 0;
   for (const code of ORIGINAL_CODES) {
     try {
-      const response = await fetch(`${API_BASE}/api/analyze?code=${code}`);
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || 'データ取得に失敗しました');
+      const payload = await apiAnalyze(code);
       for (const period of Object.keys(DATA.periods)) {
         DATA.periods[period].per_stock[code] = structuredClone(payload);
       }
