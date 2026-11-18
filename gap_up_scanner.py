@@ -66,10 +66,20 @@ def default_end_date() -> str:
     return now_jst.strftime("%Y-%m-01")
 
 
-def _cache_is_fresh(df: pd.DataFrame, end_date: str) -> bool:
-    """キャッシュが終了日の7日前以降まで入っていれば最新とみなす。"""
+def _cache_is_fresh(df: pd.DataFrame, end_date: str, fetched_at: float = None) -> bool:
+    """キャッシュが最新かを判定する。
+
+    - 最終足が終了日の7日前以降まであること（祝日・連休の猶予）
+    - fetched_at（キャッシュ保存時刻のUNIX秒）を渡した場合は、終了日以降に
+      保存されたものに限る。月の途中で保存したキャッシュは月末数日が欠けるため。
+    """
     if df is None or not len(df):
         return False
+    if fetched_at is not None:
+        from datetime import timezone, timedelta
+        saved_jst = datetime.fromtimestamp(fetched_at, timezone(timedelta(hours=9))).replace(tzinfo=None)
+        if saved_jst < datetime.strptime(end_date, "%Y-%m-%d"):
+            return False
     last = pd.Timestamp(df.index.max())
     if last.tzinfo is not None:
         last = last.tz_localize(None)
@@ -206,14 +216,17 @@ def stock_list_agent() -> list:
 def price_fetch_agent(tickers: list) -> None:
     import yfinance as yf
     os.makedirs("price_cache", exist_ok=True)
+    end_dt = datetime.strptime(CONFIG["end_date"], "%Y-%m-%d")
+
     def _needs_fetch(t: str) -> bool:
+        # 終了日（月初）以降に保存したキャッシュなら最新。pklは読まずに更新日時だけで判定する
+        # （上場廃止などで最終足が古い銘柄を毎回取り直さないため）
         path = f"price_cache/{t}.pkl"
         if not os.path.exists(path):
             return True
-        try:
-            return not _cache_is_fresh(pd.read_pickle(path), CONFIG["end_date"])
-        except Exception:
-            return True
+        from datetime import timezone, timedelta
+        saved = datetime.fromtimestamp(os.path.getmtime(path), timezone(timedelta(hours=9))).replace(tzinfo=None)
+        return saved < end_dt
     need_fetch = [t for t in tickers if _needs_fetch(t)]
     print(f"  -> 取得必要: {len(need_fetch)} 銘柄 / キャッシュ済み: {len(tickers)-len(need_fetch)} 銘柄")
     if not need_fetch:
@@ -1096,7 +1109,7 @@ def _load_yahoo_prototype_data(code: str) -> dict:
     df = None
     if os.path.exists(cache_path):
         cached = pd.read_pickle(cache_path)
-        if _cache_is_fresh(cached, end_date):
+        if _cache_is_fresh(cached, end_date, os.path.getmtime(cache_path)):
             df = cached
     if df is None:
         import yfinance as yf

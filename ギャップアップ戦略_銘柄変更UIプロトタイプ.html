@@ -317,7 +317,8 @@ async function apiAnalyze(code) {
     if (!response.ok) throw new Error(payload.error || `データ取得に失敗しました（HTTP ${response.status}）`);
     return payload;
   }
-  const response = await fetch(`data/stocks/${code}.json`, {cache: 'no-cache'});
+  if (!/^\d{4}$/.test(String(code))) throw new Error('証券コードは4桁の数字で指定してください');
+  const response = await fetch(`data/stocks/${encodeURIComponent(code)}.json`, {cache: 'no-cache'});
   if (response.status === 404) throw new Error('この銘柄は公開データに未収録です。watchlist.txt に追加すると次回の自動更新で反映されます');
   if (!response.ok) throw new Error('データ取得に失敗しました');
   return response.json();
@@ -735,6 +736,10 @@ async function addYahooStock() {
     setAddMessage('先に銘柄を検索し、検索結果から選択してください。', 'error');
     return;
   }
+  if (!/^\d{4}$/.test(code)) {
+    setAddMessage('証券コードは4桁の数字で指定してください。', 'error');
+    return;
+  }
   const name = select.selectedOptions[0].dataset.name || `${code} 銘柄`;
   setAddMessage(`${code} ${name} のYahoo Financeデータを読み込み中...`);
   try {
@@ -932,9 +937,18 @@ async function refreshInitialYahooData() {
     const startLabel = earliestStart ? earliestStart.slice(0, 7).replace('-', '/') : headerPeriod.textContent.split('〜')[0].trim();
     headerPeriod.textContent = `${startLabel} 〜 ${latestEnd.slice(0, 7).replace('-', '/')}`;
   }
-  setAddMessage(updated === ORIGINAL_CODES.length
+  let notice = '';
+  if (STATIC_SITE) {
+    // 前月分が取れず前回データのままの銘柄があれば知らせる
+    try {
+      const index = await loadStaticStockIndex();
+      const stale = (index.stale || []).map(s => `${s.code}（〜${String(s.last_month).replace('-', '/')}）`);
+      if (stale.length) notice = ` ※最新月が未反映の銘柄: ${stale.join('、')}`;
+    } catch (error) { /* 一覧が読めなくても表示は続ける */ }
+  }
+  setAddMessage((updated === ORIGINAL_CODES.length
     ? `${endLabel}までのデータを反映しました。`
-    : `${updated}/${ORIGINAL_CODES.length}銘柄を${endLabel}まで更新しました。`, updated ? 'success' : 'error');
+    : `${updated}/${ORIGINAL_CODES.length}銘柄を${endLabel}まで更新しました。`) + notice, updated ? (notice ? 'error' : 'success') : 'error');
 }
 
 refreshInitialYahooData();

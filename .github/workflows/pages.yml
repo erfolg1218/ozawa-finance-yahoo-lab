@@ -32,7 +32,9 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
-      - run: pip install -r requirements.txt
+      - run: pip install -r requirements.txt pytest
+      - name: テスト（失敗したら公開しない）
+        run: python -m pytest -q
       - run: python build_static_site.py --out _site
         env:
           # 取得に失敗した銘柄は前回公開分を引き継ぐ
@@ -69,6 +71,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/download-artifact@v4
         with:
           name: data-status
