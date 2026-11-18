@@ -8,6 +8,7 @@ on:
       - build_static_site.py
       - gap_up_scanner.py
       - stock_list.csv
+      - requirements.txt
       - "ギャップアップ戦略_銘柄変更UIプロトタイプ.html"
       - .github/workflows/pages.yml
   schedule:
@@ -20,7 +21,7 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false   # 実行中の公開（月次更新など）を取り消さず順番待ちにする
 
 jobs:
   build:
@@ -31,8 +32,13 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
-      - run: pip install -r requirements.txt
+      - run: pip install -r requirements.txt pytest
+      - name: テスト（失敗したら公開しない）
+        run: python -m pytest -q
       - run: python build_static_site.py --out _site
+        env:
+          # 取得に失敗した銘柄は前回公開分を引き継ぐ
+          PREVIOUS_SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
@@ -43,6 +49,7 @@ jobs:
 
   deploy:
     needs: build
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       pages: write
@@ -58,12 +65,14 @@ jobs:
   # リポジトリの定期実行を自動停止するのも防ぐ）
   record:
     needs: deploy
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/download-artifact@v4
         with:
           name: data-status
@@ -76,5 +85,6 @@ jobs:
             echo "変更なし"
           else
             git commit -m "Monthly data update: $(python3 -c 'import json;print(json.load(open("data_status.json"))["data_through"])')"
+            git pull --rebase origin main
             git push
           fi
