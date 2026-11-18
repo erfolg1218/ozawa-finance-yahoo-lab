@@ -56,11 +56,30 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
 def default_end_date() -> str:
     override = os.environ.get("END_DATE", "").strip()
     if override:
-        datetime.strptime(override, "%Y-%m-%d")  # 書式チェック
+        try:
+            datetime.strptime(override, "%Y-%m-%d")
+        except ValueError:
+            raise ValueError(f"環境変数 END_DATE は YYYY-MM-DD 形式で指定してください（現在: {override!r}）") from None
         return override
     from datetime import timezone, timedelta
     now_jst = datetime.now(timezone(timedelta(hours=9)))
     return now_jst.strftime("%Y-%m-01")
+
+
+def _cache_is_fresh(df: pd.DataFrame, end_date: str) -> bool:
+    """キャッシュが終了日の7日前以降まで入っていれば最新とみなす。"""
+    if df is None or not len(df):
+        return False
+    last = pd.Timestamp(df.index.max())
+    if last.tzinfo is not None:
+        last = last.tz_localize(None)
+    return last >= pd.Timestamp(end_date) - pd.Timedelta(days=7)
+
+
+def _trim_to_end(df: pd.DataFrame, end_date: str) -> pd.DataFrame:
+    """終了日（当日を含まない）より後の足を除く。当日の取引途中の足の混入も防ぐ。"""
+    index = df.index.tz_localize(None) if getattr(df.index, "tz", None) is not None else df.index
+    return df[index < pd.Timestamp(end_date)]
 
 
 # ==============================================================
@@ -187,7 +206,15 @@ def stock_list_agent() -> list:
 def price_fetch_agent(tickers: list) -> None:
     import yfinance as yf
     os.makedirs("price_cache", exist_ok=True)
-    need_fetch = [t for t in tickers if not os.path.exists(f"price_cache/{t}.pkl")]
+    def _needs_fetch(t: str) -> bool:
+        path = f"price_cache/{t}.pkl"
+        if not os.path.exists(path):
+            return True
+        try:
+            return not _cache_is_fresh(pd.read_pickle(path), CONFIG["end_date"])
+        except Exception:
+            return True
+    need_fetch = [t for t in tickers if _needs_fetch(t)]
     print(f"  -> 取得必要: {len(need_fetch)} 銘柄 / キャッシュ済み: {len(tickers)-len(need_fetch)} 銘柄")
     if not need_fetch:
         return
@@ -294,9 +321,15 @@ def calc_kpi(result: dict) -> dict:
     gross_loss   = abs(sum(t["pnl"] for t in trades if t["pnl"] < 0))
     pf       = round(gross_profit / gross_loss, 3) if gross_loss > 0 else 999.99
     win_rate = round(len([t for t in trades if t["pnl"] > 0]) / len(trades) * 100, 1)
-    start_dt = datetime.strptime(CONFIG["start_date"], "%Y-%m-%d")
-    end_dt   = datetime.strptime(CONFIG["end_date"],   "%Y-%m-%d")
-    years    = (end_dt - start_dt).days / 365.25
+    # 年数は実際の取引期間から計算する（終了日だけ延びてCAGRが過小になるのを防ぐ）
+    entry_dates = [pd.Timestamp(t["entry_date"]) for t in trades if t.get("entry_date")]
+    exit_dates  = [pd.Timestamp(t["exit_date"]) for t in trades if t.get("exit_date")]
+    if entry_dates and exit_dates:
+        start_dt, end_dt = min(entry_dates), max(exit_dates)
+    else:
+        start_dt = datetime.strptime(CONFIG["start_date"], "%Y-%m-%d")
+        end_dt   = datetime.strptime(CONFIG["end_date"],   "%Y-%m-%d")
+    years    = max((end_dt - start_dt).days / 365.25, 1 / 365.25)
     final_eq = margin + net_profit
     cagr     = round(((final_eq / margin) ** (1 / years) - 1) * 100, 2) if final_eq > 0 and years > 0 else -100.0
     eq_series = pd.Series(result["equity_curve"])
@@ -1058,15 +1091,16 @@ def _load_yahoo_prototype_data(code: str) -> dict:
     ticker = f"{code}.T"
     cache_path = os.path.join("price_cache", f"{ticker}.pkl")
     source = "Yahoo Finance cache"
+    # 起動したまま月をまたいでも最新の完了月を使うよう、呼び出しごとに終了日を決める
+    end_date = default_end_date()
     df = None
     if os.path.exists(cache_path):
         cached = pd.read_pickle(cache_path)
-        cache_limit = pd.Timestamp(CONFIG["end_date"]) - pd.Timedelta(days=7)
-        if len(cached) and pd.Timestamp(cached.index.max()).tz_localize(None) >= cache_limit:
+        if _cache_is_fresh(cached, end_date):
             df = cached
     if df is None:
         import yfinance as yf
-        df = yf.download(ticker, start=CONFIG["start_date"], end=CONFIG["end_date"],
+        df = yf.download(ticker, start=CONFIG["start_date"], end=end_date,
                          progress=False, auto_adjust=True)
         if isinstance(df.columns, pd.MultiIndex):
             df = df.droplevel(1, axis=1)
@@ -1076,6 +1110,9 @@ def _load_yahoo_prototype_data(code: str) -> dict:
         os.makedirs("price_cache", exist_ok=True)
         df.to_pickle(cache_path)
         source = "Yahoo Finance download"
+    df = _trim_to_end(df, end_date)
+    if len(df) < CONFIG["min_data_days"]:
+        raise ValueError("Yahoo Financeから十分なデータを取得できませんでした")
     result = _prototype_metrics(df, ticker)
     result["source"] = source
     result["ticker"] = ticker

@@ -161,6 +161,11 @@ tr:hover td{background:rgba(56,139,253,0.04)}
   .prototype-note,.selector-head{align-items:flex-start;flex-direction:column}
   .add-stock-form{grid-template-columns:1fr 1fr}
 }
+@media (max-width:700px){
+  .kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .kpi-value{font-size:16px;overflow-wrap:anywhere}
+  .add-stock-form{grid-template-columns:1fr}
+}
 </style>
 </head>
 <body>
@@ -275,6 +280,11 @@ const API_BASE = location.protocol === 'file:' ? 'http://127.0.0.1:8765' : '';
 const STATIC_SITE = window.STATIC_SITE === true;
 let staticStockIndex = null;
 
+// 銘柄名など外部データを HTML に埋め込むときは必ず通す（XSS対策）
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+
 async function loadStaticStockIndex() {
   if (!staticStockIndex) {
     const response = await fetch('data/stocks.json', {cache: 'no-cache'});
@@ -302,9 +312,9 @@ async function apiSearch(query) {
 
 async function apiAnalyze(code) {
   if (!STATIC_SITE) {
-    const response = await fetch(`${API_BASE}/api/analyze?code=${code}`);
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload.error || 'データ取得に失敗しました');
+    const response = await fetch(`${API_BASE}/api/analyze?code=${encodeURIComponent(code)}`);
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || `データ取得に失敗しました（HTTP ${response.status}）`);
     return payload;
   }
   const response = await fetch(`data/stocks/${code}.json`, {cache: 'no-cache'});
@@ -673,14 +683,14 @@ function renderStockControls() {
     return `<label class="stock-choice ${selected?'selected':''}">
       <input type="checkbox" value="${code}" ${selected?'checked':''} onchange="toggleStock('${code}',this.checked)">
       <span class="choice-code">${code}</span>
-      <span class="choice-name">${STOCK_NAMES[code]}</span>
+      <span class="choice-name">${escapeHtml(STOCK_NAMES[code])}</span>
       <span class="choice-kpi">${YAHOO_CODES.has(code)?'Yahoo実データ / ':''}PF ${ps[code].metrics.pf.toFixed(2)}</span>
       ${CUSTOM_CODES.has(code)?`<button class="remove-choice" type="button" title="候補から削除" onclick="event.preventDefault();event.stopPropagation();removeCustomStock('${code}')">×</button>`:''}
     </label>`;
   }).join('');
   document.getElementById('stock-tabs').innerHTML = `
     <button class="tab-btn ${currentTab==='combined'?'active':''}" data-tab="combined" onclick="switchTab('combined',this)">📊 ${selectedCodes.length}銘柄ポートフォリオ</button>
-    ${selectedCodes.map(code => `<button class="tab-btn ${currentTab===code?'active':''}" data-tab="${code}" onclick="switchTab('${code}',this)"><span class="code">${code}</span><span class="stock-name">${STOCK_NAMES[code]}</span></button>`).join('')}
+    ${selectedCodes.map(code => `<button class="tab-btn ${currentTab===code?'active':''}" data-tab="${code}" onclick="switchTab('${code}',this)"><span class="code">${code}</span><span class="stock-name">${escapeHtml(STOCK_NAMES[code])}</span></button>`).join('')}
   `;
   const summary = selectedCodes.join(' + ');
   document.getElementById('selection-summary').textContent = summary;
@@ -705,7 +715,7 @@ async function searchYahooStocks() {
     const payload = await apiSearch(query);
     const select = document.getElementById('stock-search-results');
     select.innerHTML = payload.results.length
-      ? payload.results.map(r=>`<option value="${r.code}" data-name="${r.name}">${r.code}｜${r.name}</option>`).join('')
+      ? payload.results.map(r=>`<option value="${escapeHtml(r.code)}" data-name="${escapeHtml(r.name)}">${escapeHtml(r.code)}｜${escapeHtml(r.name)}</option>`).join('')
       : '<option value="">該当する銘柄がありません</option>';
     setAddMessage(payload.results.length ? `${payload.results.length}件見つかりました。銘柄を選択して実データを追加してください。` : '該当する銘柄がありません。', payload.results.length?'success':'error');
   } catch (error) {
@@ -898,6 +908,7 @@ async function refreshInitialYahooData() {
   setAddMessage('最新の完了月までのデータを読み込み中...');
   let updated = 0;
   let latestEnd = '';
+  let earliestStart = '';
   for (const code of ORIGINAL_CODES) {
     try {
       const payload = await apiAnalyze(code);
@@ -906,6 +917,7 @@ async function refreshInitialYahooData() {
       }
       YAHOO_CODES.add(code);
       if (payload.metrics && payload.metrics.end > latestEnd) latestEnd = payload.metrics.end;
+      if (payload.metrics && payload.metrics.start && (!earliestStart || payload.metrics.start < earliestStart)) earliestStart = payload.metrics.start;
       updated++;
     } catch (error) {
       console.warn(`${code} の最新データ取得に失敗しました`, error);
@@ -917,7 +929,8 @@ async function refreshInitialYahooData() {
   const endLabel = latestEnd ? `${Number(latestEnd.slice(0, 4))}年${Number(latestEnd.slice(5, 7))}月` : '最新月';
   if (latestEnd) {
     const headerPeriod = document.getElementById('header-period');
-    headerPeriod.textContent = headerPeriod.textContent.replace(/〜.*$/, `〜 ${latestEnd.slice(0, 7).replace('-', '/')}`);
+    const startLabel = earliestStart ? earliestStart.slice(0, 7).replace('-', '/') : headerPeriod.textContent.split('〜')[0].trim();
+    headerPeriod.textContent = `${startLabel} 〜 ${latestEnd.slice(0, 7).replace('-', '/')}`;
   }
   setAddMessage(updated === ORIGINAL_CODES.length
     ? `${endLabel}までのデータを反映しました。`

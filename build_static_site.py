@@ -20,6 +20,7 @@ import os
 import shutil
 import sys
 import time
+import urllib.request
 from datetime import datetime, timedelta, timezone
 
 import gap_up_scanner as scanner
@@ -45,18 +46,39 @@ def read_watchlist(path: str = WATCHLIST) -> list:
     return codes
 
 
+def fetch_previous(code: str):
+    """前回公開分のJSONを取得する（PREVIOUS_SITE_URL が設定されている場合のみ）。"""
+    base = os.environ.get("PREVIOUS_SITE_URL", "").rstrip("/")
+    if not base:
+        return None
+    try:
+        with urllib.request.urlopen(f"{base}/data/stocks/{code}.json", timeout=20) as res:
+            return json.loads(res.read().decode("utf-8"))
+    except Exception:
+        return None
+
+
+def prepare_out_dir(out_dir: str) -> None:
+    """出力先を作り直す。誤ってリポジトリ等を消さないよう、生成物と分かる場合だけ削除する。"""
+    if os.path.exists(out_dir):
+        is_generated = os.path.basename(os.path.normpath(out_dir)) == "_site" or \
+            os.path.exists(os.path.join(out_dir, ".nojekyll"))
+        if not is_generated:
+            raise SystemExit(f"出力先 {out_dir} は生成物ではないため削除しません。_site など空のフォルダを指定してください")
+        shutil.rmtree(out_dir)
+
+
 def build(out_dir: str) -> int:
     codes = read_watchlist()
     name_map = scanner.load_name_map()
     stock_dir = os.path.join(out_dir, "data", "stocks")
-    if os.path.exists(out_dir):
-        shutil.rmtree(out_dir)
+    prepare_out_dir(out_dir)
     os.makedirs(stock_dir)
 
     end_date = scanner.CONFIG["end_date"]
     expected_month = (datetime.strptime(end_date, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m")
     print(f"{len(codes)}銘柄を計算します（{scanner.CONFIG['start_date']} 〜 {expected_month} 末）")
-    ok, failed, stale = [], [], []
+    ok, failed, stale, carried = [], [], [], []
     for i, code in enumerate(codes, 1):
         try:
             payload = scanner._load_yahoo_prototype_data(code)
@@ -72,8 +94,16 @@ def build(out_dir: str) -> int:
             else:
                 print(f"  [{i}/{len(codes)}] {code} {payload['name']} OK")
         except Exception as exc:  # 1銘柄の失敗で全体を止めない
-            failed.append({"code": code, "error": str(exc)})
             print(f"  [{i}/{len(codes)}] {code} 失敗: {exc}")
+            failed.append({"code": code, "error": type(exc).__name__})
+            previous = fetch_previous(code)
+            if previous is not None:
+                # 一時的な取得失敗で公開中の銘柄が消えないよう、前回分を引き継ぐ
+                with open(os.path.join(stock_dir, f"{code}.json"), "w", encoding="utf-8") as file:
+                    json.dump(previous, file, ensure_ascii=False, allow_nan=False)
+                ok.append(code)
+                carried.append(code)
+                print(f"      -> 前回公開分を引き継ぎました")
         time.sleep(0.5)  # Yahoo Finance側の制限対策
 
     available = set(ok)
@@ -87,6 +117,7 @@ def build(out_dir: str) -> int:
         "available": ok,
         "failed": failed,
         "stale": stale,
+        "carried_over": carried,
         "stocks": stocks,
     }
     with open(os.path.join(out_dir, "data", "stocks.json"), "w", encoding="utf-8") as file:
@@ -101,11 +132,11 @@ def build(out_dir: str) -> int:
     # GitHub Pages の Jekyll 処理を無効化
     open(os.path.join(out_dir, ".nojekyll"), "w").close()
 
-    status = {k: index[k] for k in ("generated_at", "data_through", "available", "failed", "stale")}
+    status = {k: index[k] for k in ("generated_at", "data_through", "available", "failed", "stale", "carried_over")}
     with open(os.path.join(out_dir, "data_status.json"), "w", encoding="utf-8") as file:
         json.dump(status, file, ensure_ascii=False, indent=2)
 
-    print(f"完了: 成功 {len(ok)} / 失敗 {len(failed)} / 前月分なし {len(stale)} -> {out_dir}")
+    print(f"完了: 公開 {len(ok)} / 取得失敗 {len(failed)}（うち前回分引き継ぎ {len(carried)}） / 前月分なし {len(stale)} -> {out_dir}")
     if not ok:
         print("1銘柄も取得できませんでした。Yahoo Financeへの接続を確認してください。")
         return 1
